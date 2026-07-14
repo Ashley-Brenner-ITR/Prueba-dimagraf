@@ -1,0 +1,79 @@
+{
+  "runId": "dimagraf-ds-v1-2026-07-13",
+  "fileKey": "3Rg6A6Sn3Un5fW1C3zRtXl",
+  "phase": "complete",
+  "step": "final-qa-validated",
+  "entities": {
+    "collections": {
+      "primitives": "VariableCollectionId:12:2",
+      "semantic": "VariableCollectionId:12:3",
+      "dimensions": "VariableCollectionId:12:4",
+      "typography": "VariableCollectionId:12:5"
+    },
+    "variables": {},
+    "pages": {
+      "cover": "17:2",
+      "gettingStarted": "17:3",
+      "foundations": "17:4",
+      "componentsDivider": "17:5",
+      "componentsIndex": "17:6",
+      "screensDivider": "17:7",
+      "screens": "17:8",
+      "utilities": "17:9",
+      "reference": "0:1",
+      "controls": "19:2",
+      "inputs": "19:3",
+      "badges": "19:4",
+      "cards": "19:5",
+      "table": "19:6",
+      "navigation": "19:7",
+      "feedback": "19:8"
+    },
+    "components": {
+      "button": "21:125",
+      "segmentedControl": "21:134",
+      "inputField": "23:197",
+      "inputChoice": "23:270",
+      "badge": "23:360",
+      "metricCard": "24:125",
+      "contentCard": "24:174",
+      "tableRow": "25:35",
+      "table": "25:72",
+      "globalHeader": "26:17",
+      "moduleNavigation": "26:28",
+      "userMenu": "26:61",
+      "tabs": "26:70",
+      "filterChip": "26:87",
+      "notification": "27:149",
+      "modal": "27:182",
+      "emptyState": "27:193"
+    },
+    "screens": {
+      "importacionesDesktop": "28:2",
+      "importacionesMobile": "28:3"
+    }
+  },
+  "pendingValidations": [],
+  "completedSteps": [
+    "phase0",
+    "phase1:collections",
+    "phase1:primitives-24",
+    "phase1:semantic-26",
+    "phase1:dimensions-10",
+    "phase1:typography-22",
+    "phase1:text-styles-8",
+    "phase1:effect-styles-3",
+    "phase1:validated",
+    "phase2:cover",
+    "phase2:getting-started",
+    "phase2:foundations",
+    "phase2:validated",
+    "phase3:icons-9",
+    "phase3:component-sets-17",
+    "phase3:validated",
+    "phase4:importaciones-desktop",
+    "phase4:importaciones-mobile",
+    "phase4:validated",
+    "phase5:final-qa"
+  ]
+}
