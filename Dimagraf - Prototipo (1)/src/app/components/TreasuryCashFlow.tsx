@@ -1,18 +1,22 @@
 import { useState } from 'react';
-import { Download, CheckCircle, Clock, AlertTriangle, DollarSign, Search } from 'lucide-react';
-import { getPrimaryButtonStyle, getSearchWrapStyle, getSegmentButtonStyle, pageActions, pageHeader, pageShell, searchInput, segmentedControl, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
+import { Download, CheckCircle, Clock, AlertTriangle, DollarSign } from 'lucide-react';
+import { pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
 import { MetricCardGrid } from './MetricCardGrid';
 import { OBLIGACIONES_PAGO, CARPETAS, type ObligacionPago } from './mockData';
 import { NeonBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
+import { normalizeSearchTerm } from './SearchField';
+import { color } from './theme';
+import { FilterToolbar } from './FilterToolbar';
+import { AppButton } from './AppButton';
 
-const INK      = '#1d1d1f';
-const MUTED    = '#6e6e73';
-const PARCHMENT= '#f5f5f7';
-const HAIRLINE = '#d2d2d7';
-const GREEN    = '#1a5c38';
+const INK = color.ink;
+const MUTED = color.muted;
+const PARCHMENT = color.parchment;
+const HAIRLINE = color.hairline;
+const GREEN = color.brand;
 const VIOLET   = '#5b21b6';
-const CANVAS   = '#ffffff';
+const CANVAS = color.canvas;
 
 export function TreasuryCashFlow() {
   const [horizonte, setHorizonte] = useState(30);
@@ -27,11 +31,11 @@ export function TreasuryCashFlow() {
 
   const filtered = byHorizonte.filter(p => {
     if (!search) return true;
-    const q = search.toLowerCase();
+    const q = normalizeSearchTerm(search);
     return (
-      p.carpetaNumero.toLowerCase().includes(q) ||
-      p.subcarpetaNumero.toLowerCase().includes(q) ||
-      p.proveedor.toLowerCase().includes(q)
+      normalizeSearchTerm(p.carpetaNumero).includes(q) ||
+      normalizeSearchTerm(p.subcarpetaNumero).includes(q) ||
+      normalizeSearchTerm(p.proveedor).includes(q)
     );
   });
 
@@ -57,16 +61,7 @@ export function TreasuryCashFlow() {
           <p style={{ margin: '4px 0 0', fontSize: 15, color: MUTED, fontWeight: 400 }}>Proyección de importaciones · Tesorería</p>
         </div>
         <div style={pageActions}>
-          <div style={segmentedControl}>
-            {[7, 15, 30].map(h => (
-              <button key={h} onClick={() => setHorizonte(h)} style={getSegmentButtonStyle(horizonte === h)}>
-                {h}d
-              </button>
-            ))}
-          </div>
-          <button style={getPrimaryButtonStyle()}>
-            <Download size={13} /> Exportar
-          </button>
+          <AppButton size="sm" icon={<Download size={13} />}>Exportar</AppButton>
         </div>
       </div>
 
@@ -83,15 +78,7 @@ export function TreasuryCashFlow() {
       {/* ── Table ──────────────────────────────────────────── */}
       <div style={tableShell}>
         <div style={{ padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
-          <div style={getSearchWrapStyle(400)}>
-            <Search size={15} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por carpeta, subcarpeta, proveedor..."
-              style={searchInput}
-            />
-          </div>
+          <FilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por carpeta, subcarpeta, proveedor..." searchAriaLabel="Buscar pagos" options={[{ value: 7, label: '7 días' }, { value: 15, label: '15 días' }, { value: 30, label: '30 días' }]} value={horizonte} onValueChange={setHorizonte} />
         </div>
         {isMobile ? (
           <div>
@@ -140,9 +127,7 @@ export function TreasuryCashFlow() {
                   <div style={{ marginTop: 14 }}>
                     {isPaid
                       ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#1a7a4a' }}><CheckCircle size={13} /> Emitida</span>
-                      : <button onClick={() => toggleEstado(p.id)} style={{ padding: '7px 12px', borderRadius: 9999, fontSize: 12, cursor: 'pointer', color: GREEN, border: `1px solid ${GREEN + '66'}`, background: 'rgba(26,92,56,0.08)' }}>
-                          Marcar emitida
-                        </button>
+                      : <AppButton onClick={() => toggleEstado(p.id)} size="xs" variant="success-soft">Marcar emitida</AppButton>
                     }
                   </div>
                 </div>
@@ -192,9 +177,7 @@ export function TreasuryCashFlow() {
                       <td style={{ padding: '13px 16px' }}>
                         {isPaid
                           ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#1a7a4a' }}><CheckCircle size={13} /> Emitida</span>
-                          : <button onClick={() => toggleEstado(p.id)} style={{ padding: '5px 12px', borderRadius: 9999, fontSize: 12, cursor: 'pointer', color: GREEN, border: `1px solid ${GREEN + '66'}`, background: 'rgba(26,92,56,0.08)' }}>
-                              Marcar emitida
-                            </button>
+                          : <AppButton onClick={() => toggleEstado(p.id)} size="xs" variant="success-soft">Marcar emitida</AppButton>
                         }
                       </td>
                     </tr>

@@ -1,17 +1,22 @@
 import { useState } from 'react';
-import { Search, ArrowLeft, Edit2, Check, X, ChevronRight, FolderOpen, ShieldCheck, ShieldAlert, DatabaseZap } from 'lucide-react';
-import { fieldLabel, formInput, getModalPrimaryButtonStyle, getModalSecondaryButtonStyle, getModalShellStyle, getSearchWrapStyle, modalBody, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageShell, searchInput, tableHeadCell, tableHeadRow, tableShell } from './chromeStyles';
+import { ArrowLeft, Edit2, Check, X, ChevronRight, FolderOpen, ShieldCheck, ShieldAlert, DatabaseZap } from 'lucide-react';
+import { fieldLabel, formInput, getModalPrimaryButtonStyle, getModalSecondaryButtonStyle, getModalShellStyle, getSearchWrapStyle, modalBody, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageShell, tableHeadCell, tableHeadRow, tableShell } from './chromeStyles';
 import { MetricCardGrid } from './MetricCardGrid';
 import { PROVEEDORES, getEstadoColor, type Carpeta, type Subcarpeta, type DespachoTipo } from './mockData';
-import { NeonBadge } from './NeonBadge';
+import { CanalBadge, NeonBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
+import { TransportModeIcon } from './TransportModeIcon';
+import { SearchField, normalizeSearchTerm } from './SearchField';
+import { color } from './theme';
+import { FormField as Field } from './FormField';
+import { AppButton } from './AppButton';
 
-const INK       = '#1d1d1f';
-const MUTED     = '#6e6e73';
-const PARCHMENT = '#f8fafc';
-const HAIRLINE  = '#d2d2d7';
-const GREEN     = '#1a5c38';
-const CANVAS    = '#ffffff';
+const INK = color.ink;
+const MUTED = color.muted;
+const PARCHMENT = color.parchment;
+const HAIRLINE = color.hairline;
+const GREEN = color.brand;
+const CANVAS = color.canvas;
 
 const CANAL_CFG = {
   Verde:    { color: '#1a7a4a', bg: 'rgba(26,122,74,0.10)',  border: 'rgba(26,122,74,0.30)'  },
@@ -47,25 +52,7 @@ function hasData(d: DispatcherData): boolean {
 
 // ── Canal badge ───────────────────────────────────────────────────────────────
 
-function CanalBadge({ canal }: { canal: 'Verde' | 'Rojo' | 'Pendiente' }) {
-  const cfg = CANAL_CFG[canal];
-  return (
-    <span style={{ fontSize: 12, fontWeight: 600, color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 9999, padding: '3px 10px' }}>
-      {canal}
-    </span>
-  );
-}
-
 // ── Field row for the edit modal ──────────────────────────────────────────────
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label style={fieldLabel}>{label}</label>
-      {children}
-    </div>
-  );
-}
 
 const inputStyle: React.CSSProperties = {
   ...formInput,
@@ -99,9 +86,7 @@ function EditModal({ carpetaNumero, sub, data, onSave, onClose }: EditModalProps
             <div style={{ fontSize: 18, fontWeight: 700, color: INK, letterSpacing: '-0.2px' }}>{sub.numero}</div>
             <div style={{ fontSize: 13, color: MUTED, marginTop: 2 }}>{carpetaNumero} · Datos de despacho</div>
           </div>
-          <button onClick={onClose} style={modalCloseButton}>
-            <X size={14} color={MUTED} />
-          </button>
+          <AppButton aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={onClose} icon={<X size={14} color={MUTED} />} style={{ borderRadius: 9999 }} />
         </div>
 
         {/* Form */}
@@ -114,18 +99,17 @@ function EditModal({ carpetaNumero, sub, data, onSave, onClose }: EditModalProps
                 const cfg = CANAL_CFG[c];
                 const active = form.canalAduana === c;
                 return (
-                  <button
+                  <AppButton
                     key={c}
                     onClick={() => setForm(prev => ({ ...prev, canalAduana: c }))}
+                    size="sm"
+                    variant={active ? (c === 'Rojo' ? 'danger-soft' : 'success-soft') : 'secondary'}
                     style={{
-                      flex: 1, padding: '9px 0', borderRadius: 9999, fontSize: 13, fontWeight: active ? 700 : 400, cursor: 'pointer',
-                      color: active ? cfg.color : MUTED,
-                      background: active ? cfg.bg : CANVAS,
-                      border: active ? `2px solid ${cfg.border}` : `1px solid ${HAIRLINE}`,
+                      flex: 1, fontSize: 13, fontWeight: active ? 700 : 400,
                     }}
                   >
                     {c}
-                  </button>
+                  </AppButton>
                 );
               })}
             </div>
@@ -165,14 +149,8 @@ function EditModal({ carpetaNumero, sub, data, onSave, onClose }: EditModalProps
 
           {/* Actions */}
           <div style={modalFooter}>
-            <button onClick={onClose} style={{ ...getModalSecondaryButtonStyle(), fontSize: 13 }}>
-              Cancelar
-            </button>
-            <button onClick={() => onSave(form)} style={{ ...getModalPrimaryButtonStyle(true), fontSize: 13 }}>
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <Check size={14} /> Guardar datos
-              </span>
-            </button>
+            <AppButton onClick={onClose} variant="secondary" size="sm">Cancelar</AppButton>
+            <AppButton onClick={() => onSave(form)} size="sm" icon={<Check size={14} />}>Guardar datos</AppButton>
           </div>
         </div>
       </div>
@@ -198,9 +176,9 @@ function DetailView({ carpeta, dispatcherMap, onSave, onBack, isMobile }: Detail
     <div style={pageShell}>
 
       {/* Back */}
-      <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 0', background: 'none', border: 'none', color: MUTED, fontSize: 14, cursor: 'pointer', marginBottom: 24 }}>
-        <ArrowLeft size={14} /> Volver al Dashboard
-      </button>
+      <AppButton variant="tertiary" size="sm" onClick={onBack} icon={<ArrowLeft size={14} />} style={{ padding: '5px 0', marginBottom: 24, fontWeight: 400 }}>
+        Volver al Dashboard
+      </AppButton>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28 }}>
@@ -226,9 +204,9 @@ function DetailView({ carpeta, dispatcherMap, onSave, onBack, isMobile }: Detail
               return (
                 <div key={sub.id} style={{ padding: '16px', borderBottom: i < carpeta.subcarpetas.length - 1 ? `1px solid ${HAIRLINE}` : 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>{sub.numero}</div>
-                      <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{sub.transporte} · ETA {sub.eta}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <TransportModeIcon transporte={sub.transporte} size={15} />
+                      <div><div style={{ fontSize: 14, fontWeight: 700, color: INK }}>{sub.numero}</div><div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{sub.transporte} · ETA {sub.eta}</div></div>
                     </div>
                     <CanalBadge canal={d.canalAduana} />
                   </div>
@@ -258,12 +236,9 @@ function DetailView({ carpeta, dispatcherMap, onSave, onBack, isMobile }: Detail
                       <div style={{ fontSize: 13, color: d.fechaSalidaPuerto ? INK : HAIRLINE, marginTop: 2 }}>{d.fechaSalidaPuerto || '—'}</div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setEditingSub(sub)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 14, padding: '7px 12px', background: filled ? PARCHMENT : GREEN, color: filled ? INK : '#fff', border: filled ? `1px solid ${HAIRLINE}` : 'none', borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    <Edit2 size={11} /> {filled ? 'Editar embarque' : 'Cargar embarque'}
-                  </button>
+                  <AppButton onClick={() => setEditingSub(sub)} size="xs" variant={filled ? 'secondary' : 'primary'} icon={<Edit2 size={11} />} style={{ marginTop: 14 }}>
+                    {filled ? 'Editar embarque' : 'Cargar embarque'}
+                  </AppButton>
                 </div>
               );
             })}
@@ -288,8 +263,7 @@ function DetailView({ carpeta, dispatcherMap, onSave, onBack, isMobile }: Detail
                     onMouseLeave={e => (e.currentTarget.style.background = CANVAS)}
                   >
                     <td style={{ padding: '14px 16px' }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>{sub.numero}</div>
-                      <div style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>{sub.transporte} · ETA {sub.eta}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><TransportModeIcon transporte={sub.transporte} size={15} /><div><div style={{ fontSize: 14, fontWeight: 700, color: INK }}>{sub.numero}</div><div style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>{sub.transporte} · ETA {sub.eta}</div></div></div>
                     </td>
                     <td style={{ padding: '14px 16px' }}><CanalBadge canal={d.canalAduana} /></td>
                     <td style={{ padding: '14px 16px' }}>
@@ -314,12 +288,9 @@ function DetailView({ carpeta, dispatcherMap, onSave, onBack, isMobile }: Detail
                       {d.fechaSalidaPuerto || '—'}
                     </td>
                     <td style={{ padding: '14px 16px' }}>
-                      <button
-                        onClick={() => setEditingSub(sub)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: filled ? PARCHMENT : GREEN, color: filled ? INK : '#fff', border: filled ? `1px solid ${HAIRLINE}` : 'none', borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                      >
-                        <Edit2 size={11} /> {filled ? 'Editar' : 'Ingresar'}
-                      </button>
+                      <AppButton onClick={() => setEditingSub(sub)} size="xs" variant={filled ? 'secondary' : 'primary'} icon={<Edit2 size={11} />}>
+                        {filled ? 'Editar' : 'Ingresar'}
+                      </AppButton>
                     </td>
                   </tr>
                 );
@@ -362,9 +333,9 @@ export function DispatcherDashboard({ carpetasList }: Props) {
   );
 
   const filtered = activeCarpetas.filter(c => {
-    const q = search.toLowerCase();
+    const q = normalizeSearchTerm(search);
     const prov = PROVEEDORES.find(p => p.id === c.proveedorId);
-    return !q || c.numero.toLowerCase().includes(q) || prov?.nombre.toLowerCase().includes(q);
+    return !q || [c.numero, prov?.nombre].some(value => normalizeSearchTerm(value).includes(q));
   });
 
   const handleSave = (subId: string, data: DispatcherData) => {
@@ -414,12 +385,7 @@ export function DispatcherDashboard({ carpetasList }: Props) {
       <div style={tableShell}>
         <div style={{ padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
           <div style={getSearchWrapStyle(420)}>
-            <Search size={14} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-            <input
-              value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por N° carpeta o proveedor..."
-              style={searchInput}
-            />
+            <SearchField value={search} onChange={setSearch} placeholder="Buscar por N° carpeta o proveedor..." />
           </div>
         </div>
         {isMobile ? (

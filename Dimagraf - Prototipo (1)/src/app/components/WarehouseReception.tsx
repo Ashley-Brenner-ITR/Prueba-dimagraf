@@ -1,15 +1,19 @@
 import { useState } from 'react';
-import { CheckCircle, AlertTriangle, ChevronRight, X, ArrowLeft, Download, Search } from 'lucide-react';
-import { fieldLabel, formInput, formTextarea, getModalDestructiveButtonStyle, getModalSecondaryButtonStyle, getModalShellStyle, getPrimaryButtonStyle, getSearchWrapStyle, modalBody, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageActions, pageHeader, pageShell, searchInput, tableHeadCell, tableHeadRow, tableShell } from './chromeStyles';
+import { CheckCircle, AlertTriangle, ChevronRight, X, ArrowLeft, Download } from 'lucide-react';
+import { fieldLabel, formInput, formTextarea, getModalDestructiveButtonStyle, getModalSecondaryButtonStyle, getModalShellStyle, getSearchWrapStyle, modalBody, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableShell } from './chromeStyles';
 import { CARPETAS, PROVEEDORES, type Subcarpeta, type Articulo } from './mockData';
 import { useIsMobile } from './ui/use-mobile';
+import { TransportModeIcon } from './TransportModeIcon';
+import { SearchField, normalizeSearchTerm } from './SearchField';
+import { color } from './theme';
+import { AppButton } from './AppButton';
 
-const INK      = '#1d1d1f';
-const MUTED    = '#6e6e73';
-const PARCHMENT= '#f8fafc';
-const HAIRLINE = '#d2d2d7';
-const GREEN    = '#1a5c38';
-const CANVAS   = '#ffffff';
+const INK = color.ink;
+const MUTED = color.muted;
+const PARCHMENT = color.parchment;
+const HAIRLINE = color.hairline;
+const GREEN = color.brand;
+const CANVAS = color.canvas;
 
 type WView = 'agenda' | 'checkin';
 
@@ -48,8 +52,8 @@ export function WarehouseReception() {
   const allReceptions = buildReceptions();
   const receptions = allReceptions.filter(rec => {
     if (!search) return true;
-    const q = search.toLowerCase();
-    return rec.sub.numero.toLowerCase().includes(q) || rec.carpetaNumero.toLowerCase().includes(q) || rec.proveedorNombre.toLowerCase().includes(q);
+    const q = normalizeSearchTerm(search);
+    return [rec.sub.numero, rec.carpetaNumero, rec.proveedorNombre].some(value => normalizeSearchTerm(value).includes(q));
   });
 
   const handleSelect = (rec: Reception) => {
@@ -67,12 +71,15 @@ export function WarehouseReception() {
 
       {/* ── Back / header ─────────────────────────────────────── */}
       {view !== 'agenda' && (
-        <button
+        <AppButton
+          variant="tertiary"
+          size="sm"
           onClick={() => { setView('agenda'); setSelectedRec(null); setShowIncident(false); }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 0', background: 'none', border: 'none', color: MUTED, fontSize: 14, cursor: 'pointer', marginBottom: 20, fontWeight: 400 }}
+          icon={<ArrowLeft size={14} />}
+          style={{ padding: '5px 0', marginBottom: 20, fontWeight: 400 }}
         >
-          <ArrowLeft size={14} /> Volver al Dashboard
-        </button>
+          Volver al Dashboard
+        </AppButton>
       )}
 
       <div style={{ ...pageHeader, alignItems: 'flex-start', marginBottom: 12 }}>
@@ -88,9 +95,7 @@ export function WarehouseReception() {
         </div>
         {view === 'agenda' && (
           <div style={pageActions}>
-            <button style={getPrimaryButtonStyle()}>
-              <Download size={13} /> Exportar
-            </button>
+            <AppButton size="sm" icon={<Download size={13} />}>Exportar</AppButton>
           </div>
         )}
       </div>
@@ -101,8 +106,7 @@ export function WarehouseReception() {
           <div style={tableShell}>
             <div style={{ padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
               <div style={getSearchWrapStyle(400)}>
-                <Search size={15} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por subcarpeta, carpeta, proveedor..." style={searchInput} />
+                <SearchField value={search} onChange={setSearch} placeholder="Buscar por subcarpeta, carpeta, proveedor..." />
               </div>
             </div>
             {isMobile ? (
@@ -116,9 +120,12 @@ export function WarehouseReception() {
                       style={{ width: '100%', padding: '16px', border: 'none', borderBottom: i < receptions.length - 1 ? `1px solid ${HAIRLINE}` : 'none', borderLeft: hasInc ? '3px solid #c4001a' : '3px solid transparent', background: hasInc ? 'rgba(196,0,26,0.02)' : CANVAS, cursor: 'pointer', textAlign: 'left' }}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>{rec.sub.numero}</div>
-                          <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{rec.carpetaNumero}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <TransportModeIcon transporte={rec.sub.transporte} size={15} />
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: INK }}>{rec.sub.numero}</div>
+                            <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{rec.sub.transporte} · {rec.carpetaNumero}</div>
+                          </div>
                         </div>
                         <ChevronRight size={16} style={{ color: HAIRLINE }} />
                       </div>
@@ -179,8 +186,10 @@ export function WarehouseReception() {
                         onMouseLeave={e => (e.currentTarget.style.background = hasInc ? 'rgba(196,0,26,0.02)' : CANVAS)}
                       >
                         <td style={{ padding: '14px 16px' }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: INK, letterSpacing: '-0.2px' }}>{rec.sub.numero}</div>
-                          <div style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>{rec.carpetaNumero}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <TransportModeIcon transporte={rec.sub.transporte} size={15} />
+                            <div><div style={{ fontSize: 14, fontWeight: 700, color: INK, letterSpacing: '-0.2px' }}>{rec.sub.numero}</div><div style={{ fontSize: 12, color: MUTED, marginTop: 1 }}>{rec.sub.transporte} · {rec.carpetaNumero}</div></div>
+                          </div>
                         </td>
                         <td style={{ padding: '14px 16px' }}>
                           <div style={{ fontSize: 14, color: INK }}>{rec.proveedorNombre}</div>
@@ -291,18 +300,18 @@ export function WarehouseReception() {
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-                        <button
+                        <AppButton
                           onClick={() => alert(`Entrega conforme para ${art.codigoSAP}.`)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', background: ok ? 'rgba(26,92,56,0.08)' : 'transparent', color: ok ? GREEN : HAIRLINE, border: `1px solid ${ok ? 'rgba(26,92,56,0.25)' : HAIRLINE}`, borderRadius: 9999, fontSize: 12, fontWeight: ok ? 600 : 400, cursor: ok ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                          size="xs"
+                          variant="success-soft"
+                          icon={<CheckCircle size={12} />}
+                          disabled={!ok}
                         >
-                          <CheckCircle size={12} /> Conforme
-                        </button>
-                        <button
-                          onClick={() => setShowIncident(true)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', background: 'rgba(196,0,26,0.08)', color: '#c4001a', border: '1px solid rgba(196,0,26,0.25)', borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                        >
-                          <AlertTriangle size={12} /> Reportar
-                        </button>
+                          Conforme
+                        </AppButton>
+                        <AppButton onClick={() => setShowIncident(true)} size="xs" variant="danger-soft" icon={<AlertTriangle size={12} />}>
+                          Reportar
+                        </AppButton>
                       </div>
                     </div>
                   );
@@ -373,18 +382,18 @@ export function WarehouseReception() {
                         </td>
                         <td style={{ padding: '12px 16px' }}>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button
+                            <AppButton
                               onClick={() => alert(`Entrega conforme para ${art.codigoSAP}.`)}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: ok ? 'rgba(26,92,56,0.08)' : 'transparent', color: ok ? GREEN : HAIRLINE, border: `1px solid ${ok ? 'rgba(26,92,56,0.25)' : HAIRLINE}`, borderRadius: 9999, fontSize: 12, fontWeight: ok ? 600 : 400, cursor: ok ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
+                              size="xs"
+                              variant="success-soft"
+                              icon={<CheckCircle size={12} />}
+                              disabled={!ok}
                             >
-                              <CheckCircle size={12} /> Conforme
-                            </button>
-                            <button
-                              onClick={() => setShowIncident(true)}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'rgba(196,0,26,0.08)', color: '#c4001a', border: '1px solid rgba(196,0,26,0.25)', borderRadius: 9999, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                            >
-                              <AlertTriangle size={12} /> Reportar
-                            </button>
+                              Conforme
+                            </AppButton>
+                            <AppButton onClick={() => setShowIncident(true)} size="xs" variant="danger-soft" icon={<AlertTriangle size={12} />}>
+                              Reportar
+                            </AppButton>
                           </div>
                         </td>
                       </tr>
@@ -406,9 +415,7 @@ export function WarehouseReception() {
             {/* Modal header */}
             <div style={modalHeader}>
               <h2 style={{ fontSize: 18, fontWeight: 600, color: INK, margin: 0, letterSpacing: '-0.374px' }}>Registro de Incidencia</h2>
-              <button onClick={() => setShowIncident(false)} style={modalCloseButton}>
-                <X size={15} style={{ color: MUTED }} />
-              </button>
+              <AppButton aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={() => setShowIncident(false)} icon={<X size={15} style={{ color: MUTED }} />} style={{ borderRadius: 9999 }} />
             </div>
 
             <div style={{ ...modalBody, padding: '20px 24px' }}>
@@ -447,18 +454,10 @@ export function WarehouseReception() {
               </div>
 
               <div style={modalFooter}>
-                <button
-                  onClick={() => setShowIncident(false)}
-                  style={getModalSecondaryButtonStyle()}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => { setShowIncident(false); alert('Incidencia registrada. Alerta enviada a Importaciones. Carpeta permanece abierta.'); }}
-                  style={{ ...getModalDestructiveButtonStyle(), flex: 2 }}
-                >
+                <AppButton onClick={() => setShowIncident(false)} variant="secondary" size="sm">Cancelar</AppButton>
+                <AppButton onClick={() => { setShowIncident(false); alert('Incidencia registrada. Alerta enviada a Importaciones. Carpeta permanece abierta.'); }} variant="danger" size="sm" style={{ flex: 2 }}>
                   Registrar Incidencia
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>

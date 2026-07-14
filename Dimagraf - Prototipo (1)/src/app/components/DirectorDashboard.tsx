@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { AlertTriangle, TrendingUp, DollarSign, Ship, Eye, Download, Search } from 'lucide-react';
-import { filterGroup, filtersSurface, getAutoFitGridStyle, getPrimaryButtonStyle, getResponsiveTableStyle, getSearchWrapStyle, getSegmentButtonStyle, pageActions, pageHeader, pageShell, searchInput, tableHeadCell, tableHeadRow, tableScrollArea, tableShell, segmentedControl } from './chromeStyles';
+import { AlertTriangle, TrendingUp, DollarSign, Ship, Eye, Download } from 'lucide-react';
+import { filterGroup, filtersSurface, getAutoFitGridStyle, getPrimaryButtonStyle, getResponsiveTableStyle, getSearchWrapStyle, getSegmentButtonStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell, segmentedControl } from './chromeStyles';
 import { CARPETAS, PROVEEDORES, getEstadoColor, type Carpeta } from './mockData';
 import { MetricCardGrid } from './MetricCardGrid';
 import { NeonBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
+import { SearchField, normalizeSearchTerm } from './SearchField';
+import { color as themeColor } from './theme';
 
-const INK      = '#1d1d1f';
-const MUTED    = '#6e6e73';
-const PARCHMENT= '#f8fafc';
-const HAIRLINE = '#d2d2d7';
-const GREEN    = '#1a5c38';
+const INK = themeColor.ink;
+const MUTED = themeColor.muted;
+const PARCHMENT = themeColor.parchment;
+const HAIRLINE = themeColor.hairline;
+const GREEN = themeColor.brand;
 const VIOLET   = '#5b21b6';
-const CANVAS   = '#ffffff';
+const CANVAS = themeColor.canvas;
 
 interface Props {
   onViewCarpeta: (id: string) => void;
@@ -37,6 +39,7 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
   const criticas   = list.filter(c => c.estado === 'Con Incidencia' || c.subcarpetas.some(s => s.canalAduana === 'Rojo'));
   const totalMonto = activas.reduce((s, c) => s + c.montoTotal, 0);
   const contenedores = list.flatMap(c => c.subcarpetas).filter(s => s.estado !== 'Cerrada').reduce((s, sub) => s + sub.contenedores, 0);
+  import { AppButton } from './AppButton';
   const costeo = list.filter(c => c.coeficienteReal !== null);
   const desvios = costeo.filter(c => Math.abs((c.coeficienteReal! - c.coeficienteEst) / c.coeficienteEst) > 0.05);
 
@@ -53,9 +56,7 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
           <div style={segmentedControl}>
             <button onClick={() => onSectionChange('kpi')} style={getSegmentButtonStyle(section === 'kpi')}>KPIs</button>
             <button onClick={() => onSectionChange('audit')} style={getSegmentButtonStyle(section === 'audit')}>Auditoría Costos</button>
-          </div>
-          <button style={getPrimaryButtonStyle()}>
-            <Download size={13} /> Exportar
+                <AppButton size="sm" icon={<Download size={13} />}>Exportar</AppButton>
           </button>
         </div>
       </div>
@@ -81,7 +82,7 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
                   const prov = PROVEEDORES.find(p => p.id === c.proveedorId);
                   const color = getEstadoColor(c.estado);
                   return (
-                    <div key={c.id} style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', flexWrap: 'wrap', gap: isMobile ? '8px 12px' : 16, padding: isMobile ? '12px 14px' : '14px 18px', borderTop: `1px solid ${color}33`, borderRight: `1px solid ${color}33`, borderBottom: `1px solid ${color}33`, borderLeft: `4px solid ${color}`, borderRadius: 12, background: `${color}12` }}>
+                    <div key={c.id} style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', flexWrap: 'wrap', gap: isMobile ? '8px 12px' : 16, padding: isMobile ? '12px 14px' : '14px 18px', border: `1px solid ${color}`, borderRadius: 12, background: `${color}12` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                         <AlertTriangle size={15} style={{ color, flexShrink: 0 }} />
                         <span style={{ fontSize: 14, fontWeight: 700, color: INK }}>{c.numero}</span>
@@ -89,9 +90,9 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
                       </div>
                       <span style={{ fontSize: 13, color: MUTED, flex: 1, minWidth: isMobile ? '100%' : 120 }}>{c.ultimoHito}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
-                        <span style={{ fontSize: 13, color: MUTED }}>{prov?.nombre}</span>
-                        <button onClick={() => onViewCarpeta(c.id)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, color: INK, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>
-                          <Eye size={12} /> Ver
+                              <AppButton size="xs" variant="secondary" icon={<Eye size={12} />} onClick={() => onViewCarpeta(c.id)} style={{ flexShrink: 0 }}>
+                                Ver
+                              </AppButton>
                         </button>
                       </div>
                     </div>
@@ -143,9 +144,10 @@ function SimpleBarChart({ title, data, color }: { title: string; data: { label: 
 function AuditPanel({ onViewCarpeta, list }: { onViewCarpeta: (id: string) => void; list: typeof CARPETAS }) {
   const [search, setSearch] = useState('');
   const costeo = list.filter(c => c.coeficienteReal !== null).filter(c => {
-    if (!search) return true;
+    const query = normalizeSearchTerm(search);
+    if (!query) return true;
     const prov = PROVEEDORES.find(p => p.id === c.proveedorId);
-    return c.numero.toLowerCase().includes(search.toLowerCase()) || prov?.nombre.toLowerCase().includes(search.toLowerCase());
+    return [c.numero, prov?.nombre].some(value => normalizeSearchTerm(value).includes(query));
   });
 
   return (
@@ -157,8 +159,7 @@ function AuditPanel({ onViewCarpeta, list }: { onViewCarpeta: (id: string) => vo
               Auditoría de Costos — Variación de Coeficientes
             </h2>
             <div style={getSearchWrapStyle(300)}>
-              <Search size={14} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar carpeta o proveedor..." style={{ ...searchInput, padding: '10px 14px 10px 40px', fontSize: 13 }} />
+              <SearchField value={search} onChange={setSearch} placeholder="Buscar carpeta o proveedor..." />
             </div>
           </div>
         </div>
@@ -192,9 +193,7 @@ function AuditPanel({ onViewCarpeta, list }: { onViewCarpeta: (id: string) => vo
                     <td style={{ padding: '14px 16px', fontSize: 13, color: MUTED, maxWidth: 220 }}>
                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.observaciones || '(sin observaciones)'}</div>
                     </td>
-                    <td style={{ padding: '14px 16px' }}>
-                      <button onClick={() => onViewCarpeta(c.id)} style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: 13 }}>
-                        <Eye size={14} />
+                            <AppButton type="button" size="xs" variant="tertiary" icon={<Eye size={14} />} onClick={() => onViewCarpeta(c.id)} aria-label={`Ver ${c.numero}`} />
                       </button>
                     </td>
                   </tr>

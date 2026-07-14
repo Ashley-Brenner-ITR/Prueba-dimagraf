@@ -3,13 +3,10 @@ import { ArrowLeft, Mail, ShieldCheck } from 'lucide-react';
 import type { AppUser, Role } from './mockData';
 import { pageShell } from './chromeStyles';
 import { useIsMobile } from './ui/use-mobile';
+import { AppButton } from './AppButton';
+import { color } from './theme';
 
-const INK = '#1d1d1f';
-const MUTED = '#667085';
-const HAIRLINE = '#eaecf0';
-const PARCHMENT = '#f8fafc';
-const CANVAS = '#ffffff';
-const GREEN = '#1a5c38';
+const { ink: INK, muted: MUTED, hairline: HAIRLINE, parchment: PARCHMENT, surface: CANVAS, brand: GREEN } = color;
 
 export type MailFrequency = 'Diario' | 'Semanal' | 'Mensual';
 export type MailReportKey = 'arrivals' | 'vencimientos' | 'cashflow' | 'auditoria';
@@ -224,7 +221,7 @@ export function AccountSettingsPage({ activeRole, currentUser, mailConfig, onCha
         </section>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
+          <AppButton
             onClick={() => onSave({
               password: password.trim() || undefined,
               mailConfig: {
@@ -236,7 +233,7 @@ export function AccountSettingsPage({ activeRole, currentUser, mailConfig, onCha
             style={{ minWidth: 180, padding: '11px 16px', borderRadius: 9999, border: 'none', background: canSave ? GREEN : HAIRLINE, color: canSave ? '#fff' : MUTED, fontSize: 13, fontWeight: 700, cursor: canSave ? 'pointer' : 'default' }}
           >
             Guardar configuración
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

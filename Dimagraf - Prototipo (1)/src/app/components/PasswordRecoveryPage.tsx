@@ -1,14 +1,11 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeft, Mail } from 'lucide-react';
 import type { AppUser } from './mockData';
+import { AppButton } from './AppButton';
+import { normalizeSearchTerm } from './SearchField';
+import { color } from './theme';
 
-const INK = '#1d1d1f';
-const MUTED = '#6e6e73';
-const HAIRLINE = '#d2d2d7';
-const PARCHMENT = '#f5f5f7';
-const CANVAS = '#ffffff';
-const GREEN = '#1a5c38';
-const RED = '#9f1239';
+const { ink: INK, muted: MUTED, hairline: HAIRLINE, surface: CANVAS, brand: GREEN, danger: RED } = color;
 
 interface PasswordRecoveryPageProps {
   users: AppUser[];
@@ -23,7 +20,7 @@ export function PasswordRecoveryPage({ users }: PasswordRecoveryPageProps) {
   const [messageTone, setMessageTone] = useState<'success' | 'error'>('success');
 
   const matchedUser = useMemo(
-    () => users.find(user => user.username.trim().toLowerCase() === username.trim().toLowerCase()),
+    () => users.find(user => normalizeSearchTerm(user.username) === normalizeSearchTerm(username)),
     [users, username],
   );
 
@@ -113,7 +110,7 @@ export function PasswordRecoveryPage({ users }: PasswordRecoveryPageProps) {
           </div>
         </div>
 
-        <div style={{ padding: 28, background: CANVAS }}>
+        <form onSubmit={event => { event.preventDefault(); handleRecoverySend(); }} style={{ padding: 28, background: CANVAS }}>
           <div>
             <label style={{ display: 'block', marginBottom: 6, color: MUTED, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em' }}>
               USUARIO
@@ -149,9 +146,8 @@ export function PasswordRecoveryPage({ users }: PasswordRecoveryPageProps) {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleRecoverySend}
+          <AppButton
+            type="submit"
             style={{
               width: '100%',
               marginTop: 20,
@@ -167,8 +163,8 @@ export function PasswordRecoveryPage({ users }: PasswordRecoveryPageProps) {
             }}
           >
             Enviar mail
-          </button>
-        </div>
+          </AppButton>
+        </form>
       </div>
     </div>
   );

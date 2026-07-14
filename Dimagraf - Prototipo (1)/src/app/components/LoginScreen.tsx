@@ -2,13 +2,10 @@ import { useState } from 'react';
 import { Eye, EyeOff, KeyRound } from 'lucide-react';
 import fondoBackground from '../../styles/fondo.svg';
 import dimagrafLogo from '../../imports/imagen__3_.png';
+import { AppButton } from './AppButton';
+import { color } from './theme';
 
-const INK = '#1d1d1f';
-const MUTED = '#6e6e73';
-const HAIRLINE = '#d2d2d7';
-const PARCHMENT = '#f5f5f7';
-const CANVAS = '#ffffff';
-const GREEN = '#1a5c38';
+const { ink: INK, muted: MUTED, hairline: HAIRLINE, surface: CANVAS, brand: GREEN } = color;
 
 interface LoginScreenProps {
   error?: string;
@@ -189,9 +186,9 @@ export function LoginScreen({ error, onLogin }: LoginScreenProps) {
               </div>
             )}
 
-            <button type="submit" style={{ marginTop: 4, padding: '14px 18px', border: 'none', borderRadius: 14, background: GREEN, color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 8px 20px rgba(26,92,56,0.16)' }}>
+            <AppButton type="submit" style={{ width: '100%', marginTop: 4, padding: '14px 18px', borderRadius: 14, fontSize: 14, fontWeight: 700, boxShadow: '0 8px 20px rgba(26,92,56,0.16)' }}>
               Ingresar
-            </button>
+            </AppButton>
           </form>
 
           <div style={{ marginTop: 20, paddingTop: 18, borderTop: `1px solid ${HAIRLINE}` }}>

@@ -35,6 +35,28 @@ Este documento resume el pendiente actual y también deja asentados los cambios 
 
 - `Seguridad multirol`: la base ya quedó implementada en el prototipo. Lo pendiente a futuro es endurecer reglas, permisos por campo y persistencia real.
 
+## Reglas claras de edición (vigente en prototipo)
+
+### Regla transversal
+
+- `Lectura por defecto`: perfiles en modo solo lectura no editan atributos de carpeta.
+- `Importaciones como editor de OC`: la edición de datos de OC original en `General` y `Artículos` corresponde al rol `Importaciones`.
+- `Bloqueo por primer embarque`: al crear el primer embarque/subcarpeta, la OC original se bloquea para edición.
+- `Bloqueo por cierre`: una carpeta en estado `Cerrada` no permite edición de OC original.
+
+### Matriz por rol y momento
+
+- `Importaciones`:
+	- `General (OC original)`: editable solo `antes del primer embarque` y si la carpeta `no está cerrada`.
+	- `Artículos (OC original)`: editable solo `antes del primer embarque` y si la carpeta `no está cerrada`.
+	- `Mensaje de bloqueo`: si no se puede editar, se informa causa (`solo lectura`, `primer embarque creado`, `carpeta cerrada`).
+- `Dirección`: `solo lectura` en detalle de carpeta.
+- `Comercial`: `solo lectura` en detalle de carpeta y además `sin importes`.
+- `Tesorería`: edición concentrada en flujo de pagos/cashflow (no en OC original de carpeta).
+- `Depósito`: edición concentrada en recepción e incidencias físicas (no en OC original de carpeta).
+- `Despachante`: edición concentrada en atributos aduaneros por apertura/subcarpeta (no en OC original de carpeta).
+- `Admin`: administración de maestros, usuarios, permisos y auditoría; no se define edición operativa de OC original como flujo principal.
+
 ## Alta prioridad funcional pendiente
 
 - ~~`Carga masiva de artículos por carpeta`: hoy la carga es manual de a un artículo. Falta importación masiva con `código de artículo`, `cantidad`, `UM`, `UME`, equivalencias y datos adicionales de la OC.~~

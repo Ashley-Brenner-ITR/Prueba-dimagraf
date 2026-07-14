@@ -1,16 +1,20 @@
 import { useState } from 'react';
-import { Download, Search, Filter, Package, Clock3, Users, Ship, Truck, Plane } from 'lucide-react';
-import { filterGroup, filtersSurface, getFilterChipStyle, getPrimaryButtonStyle, getResponsiveTableStyle, getSearchWrapStyle, pageActions, pageHeader, pageShell, searchInput, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
+import { Download, Package, Clock3, Users } from 'lucide-react';
+import { getPrimaryButtonStyle, getResponsiveTableStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
 import { MetricCardGrid } from './MetricCardGrid';
 import { CARPETAS, PROVEEDORES } from './mockData';
 import { useIsMobile } from './ui/use-mobile';
+import { TransportModeIcon } from './TransportModeIcon';
+import { normalizeSearchTerm } from './SearchField';
+import { color } from './theme';
+import { FilterToolbar } from './FilterToolbar';
 
-const INK      = '#1d1d1f';
-const MUTED    = '#6e6e73';
-const PARCHMENT= '#f5f5f7';
-const HAIRLINE = '#d2d2d7';
-const GREEN    = '#1a5c38';
-const CANVAS   = '#ffffff';
+const INK = color.ink;
+const MUTED = color.muted;
+const PARCHMENT = color.parchment;
+const HAIRLINE = color.hairline;
+const GREEN = color.brand;
+const CANVAS = color.canvas;
 
 interface ArrivalRow {
   codigoSAP: string; descripcion: string; linea: string;
@@ -44,7 +48,8 @@ export function CommercialArrivals() {
 
   const filtered = arrivals.filter(r => {
     const matchLinea = lineaFilter === 'Todos' || r.linea === lineaFilter;
-    const matchSearch = !search || r.codigoSAP.includes(search) || r.descripcion.toLowerCase().includes(search.toLowerCase()) || r.proveedor.toLowerCase().includes(search.toLowerCase());
+    const query = normalizeSearchTerm(search);
+    const matchSearch = !query || [r.codigoSAP, r.descripcion, r.proveedor].some(value => normalizeSearchTerm(value).includes(query));
     return matchLinea && matchSearch;
   });
 
@@ -79,22 +84,7 @@ export function CommercialArrivals() {
       {/* ── Table ──────────────────────────────────────────── */}
       <div style={tableShell}>
         <div style={{ padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
-          <div style={{ ...filtersSurface, marginBottom: 0, padding: 0, gap: 12, alignItems: 'center', background: 'transparent', border: 'none', boxShadow: 'none', borderRadius: 0 }}>
-            <div style={{ ...getSearchWrapStyle(360), flex: '1 1 360px', minWidth: 0 }}>
-              <Search size={14} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-              <input
-                value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar por código SAP, descripción, proveedor..."
-                style={searchInput}
-              />
-            </div>
-            <div style={filterGroup}>
-              <Filter size={13} style={{ color: MUTED }} />
-              {['Todos', 'LCA', 'LDA'].map(f => (
-                <button key={f} onClick={() => setLineaFilter(f)} style={getFilterChipStyle(lineaFilter === f)}>{f}</button>
-              ))}
-            </div>
-          </div>
+          <FilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por código SAP, descripción, proveedor..." searchAriaLabel="Buscar arrivals" options={[{ value: 'Todos', label: 'Todos' }, { value: 'LCA', label: 'LCA' }, { value: 'LDA', label: 'LDA' }]} value={lineaFilter} onValueChange={setLineaFilter} />
         </div>
         <div style={tableScrollArea}>
           {isMobile ? (
@@ -104,7 +94,6 @@ export function CommercialArrivals() {
                 const etaColor = dl <= 0 ? '#c4001a' : dl <= 7 ? '#b45309' : INK;
                 const isOverdue = dl <= 0;
                 const isNear = dl > 0 && dl <= 7;
-                const TransIcon = row.transporte === 'Marítimo' ? Ship : row.transporte === 'Terrestre' ? Truck : Plane;
                 return (
                   <div key={`${row.subcarpetaNumero}-${row.codigoSAP}-${i}`} style={{ padding: '14px 16px', borderBottom: i < filtered.length - 1 ? `1px solid ${HAIRLINE}` : 'none', background: CANVAS }}>
                     {/* Row 1: Subcarpeta + ETA alineado derecha */}
@@ -124,7 +113,7 @@ export function CommercialArrivals() {
                       <span>·</span>
                       <span style={{ fontWeight: 500, color: INK }}>{row.cantidadViaje.toLocaleString()} {row.um}</span>
                       <span>·</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><TransIcon size={11} /> {row.transporte}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><TransportModeIcon transporte={row.transporte} size={12} compact /> {row.transporte}</span>
                       <span>·</span>
                       <span>{row.linea}</span>
                     </div>
@@ -145,7 +134,6 @@ export function CommercialArrivals() {
               {filtered.map((row, i) => {
                 const dl = daysLeft(row.eta);
                 const etaColor = dl <= 0 ? '#c4001a' : dl <= 7 ? '#b45309' : dl <= 15 ? '#1a7a4a' : INK;
-                const TransIcon = row.transporte === 'Marítimo' ? Ship : row.transporte === 'Terrestre' ? Truck : Plane;
                 return (
                   <tr key={`${row.subcarpetaNumero}-${row.codigoSAP}`} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${HAIRLINE}` : 'none', background: CANVAS }}
                     onMouseEnter={e => (e.currentTarget.style.background = PARCHMENT)}
@@ -163,7 +151,7 @@ export function CommercialArrivals() {
                     </td>
                     <td style={{ padding: '13px 16px', fontSize: 13, color: MUTED }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                        <TransIcon size={13} color={MUTED} /> {row.transporte}
+                        <TransportModeIcon transporte={row.transporte} size={12} compact /> {row.transporte}
                       </span>
                     </td>
                     <td style={{ padding: '13px 16px' }}>

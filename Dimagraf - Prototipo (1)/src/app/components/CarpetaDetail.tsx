@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, FileText, DollarSign, Upload, Eye, Download, ChevronRight, Plus, CheckCircle, Landmark, AlertTriangle, X, Pencil, Trash2, Info } from 'lucide-react';
+import { ArrowLeft, FileText, DollarSign, Upload, Eye, Download, ChevronRight, ChevronDown, Plus, CheckCircle, Landmark, AlertTriangle, X, Pencil, Trash2, Info, Ship } from 'lucide-react';
 import { getAutoFitGridStyle, getResponsiveTableStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea } from './chromeStyles';
 import { CARPETAS, DESPACHANTES, getProveedor, getDespachante, type Subcarpeta, type Carpeta } from './mockData';
 import { NeonBadge, CanalBadge } from './NeonBadge';
@@ -8,6 +8,13 @@ import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { ShipmentCard } from './ShipmentCard';
+import { AppButton } from './AppButton';
+import { AppInput, FormField } from './FormField';
+import { normalizeSearchTerm } from './SearchField';
+import { InfoField as Field } from './InfoField';
+import { SectionCard as Card } from './SectionCard';
+import { FilterToolbar } from './FilterToolbar';
 
 const INK      = '#1d1d1f';
 const MUTED    = '#6e6e73';
@@ -23,7 +30,8 @@ function formatMoney(value: number, currency: string) {
   return `${symbol} ${value.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
 }
 
-type Tab = 'general' | 'articulos' | 'subcarpetas' | 'produccion' | 'documentos' | 'aduana' | 'costeo';
+type Tab = 'general' | 'articulos' | 'produccion' | 'subcarpetas' | 'documentos' | 'aduana' | 'costeo';
+type CarpetaDetailRole = 'operator' | 'director' | 'commercial' | 'treasury' | 'warehouse' | 'dispatcher' | 'admin';
 
 const SUB_LETTERS = ['A', 'B', 'C'] as const;
 type SubLetter = typeof SUB_LETTERS[number];
@@ -44,12 +52,10 @@ function normalizeCarpetaState(carpeta: Carpeta): Carpeta {
   };
 }
 
-interface Props { carpetaId: string; onBack: () => void; readonly?: boolean; carpetasList?: Carpeta[]; hideImportes?: boolean; initialTab?: Tab; onUpdateCarpeta?: (carpeta: Carpeta) => void; }
-export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasList, hideImportes = false, initialTab = 'general', onUpdateCarpeta }: Props) {
+interface Props { carpetaId: string; onBack: () => void; readonly?: boolean; carpetasList?: Carpeta[]; hideImportes?: boolean; initialTab?: Tab; onUpdateCarpeta?: (carpeta: Carpeta) => void; role?: CarpetaDetailRole; }
+export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasList, hideImportes = false, initialTab = 'general', onUpdateCarpeta, role = 'operator' }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [activeSub, setActiveSub] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
   const [draftCarpeta, setDraftCarpeta] = useState<Carpeta | null>(null);
   const isMobile = useIsMobile();
 
@@ -78,11 +84,21 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
   const subs = carpeta.subcarpetas;
   const proveedor = getProveedor(carpeta.proveedorId);
   const hasShipments = subs.length > 0;
-  const canEditOriginalOc = !readonly && !hasShipments && carpeta.estado !== 'Cerrada';
+  const isClosed = carpeta.estado === 'Cerrada';
+  const canEditByRole = !readonly && role === 'operator';
+  const canEditOriginalOc = canEditByRole && !hasShipments && !isClosed;
+  const ocLockReason = readonly
+    ? 'Perfil en solo lectura.'
+    : role !== 'operator'
+      ? 'Solo Importaciones puede editar la OC original.'
+      : isClosed
+        ? 'La carpeta está cerrada.'
+        : hasShipments
+          ? 'La OC original se bloquea al crear el primer embarque.'
+          : null;
 
   const usedLetters = subs.map(s => s.numero.split('-').pop() as SubLetter);
   const nextLetter = SUB_LETTERS.find(l => !usedLetters.includes(l)) ?? null;
-
   const allTabs: { id: Tab; label: string }[] = [
     { id: 'general',     label: 'General'                  },
     { id: 'articulos',   label: 'Artículos'                },
@@ -116,21 +132,14 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
           <p style={{ fontSize: 13, color: MUTED, margin: '8px 0 0' }}>Último hito: {carpeta.ultimoHito}</p>
         </div>
         <div style={{ ...pageActions, flexShrink: 0 }}>
-          {canEditOriginalOc && !isEditing && (
-            <button onClick={() => setIsEditing(true)} style={{ padding: '10px 20px', background: CANVAS, color: INK, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              Editar
-            </button>
-          )}
           {!readonly && (
-            <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: CANVAS, color: MUTED, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, fontSize: 13, cursor: 'pointer' }}>
-              <Download size={13} /> Exportar SAP
-            </button>
+            <AppButton variant="secondary" icon={<Download size={13} />}>Exportar SAP</AppButton>
           )}
         </div>
       </div>
 
       {/* ── Tabs ─────────────────────────────────────────────── */}
-      <div style={{ border: `1px solid ${HAIRLINE}`, borderRadius: 18, overflow: 'hidden', background: CANVAS }}>
+      <div style={{ border: `1px solid ${HAIRLINE}`, borderRadius: 14, overflow: 'hidden', background: CANVAS }}>
       {isMobile ? (
         <div style={{ padding: 12, borderBottom: `1px solid ${HAIRLINE}`, background: '#f4f8f5' }}>
           <Select value={tab} onValueChange={value => setTab(value as Tab)}>
@@ -144,7 +153,7 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
         </div>
       ) : (
         <Tabs value={tab} onValueChange={value => setTab(value as Tab)}>
-          <TabsList aria-label="Secciones de la carpeta" style={{ display: 'flex', gap: 0, width: '100%', minHeight: 44, height: 'auto', justifyContent: 'flex-start', padding: '0 10px', borderBottom: `1px solid ${HAIRLINE}`, borderRadius: 0, background: '#f4f8f5', flexWrap: 'wrap', overflow: 'visible' }}>
+          <TabsList aria-label="Secciones de la carpeta" style={{ display: 'flex', gap: 0, width: '100%', minHeight: 48, height: 48, justifyContent: 'flex-start', padding: '0 10px', borderBottom: `1px solid ${HAIRLINE}`, borderRadius: 0, background: '#fafbfd', flexWrap: 'nowrap', overflowX: 'auto', overflowY: 'hidden' }}>
             {tabs.map(t => {
               const active = tab === t.id;
               return (
@@ -153,7 +162,7 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
                   color: active ? GREEN : MUTED,
                   background: 'transparent', border: 'none', borderRadius: 0,
                   borderBottom: active ? `2px solid ${GREEN}` : '2px solid transparent',
-                  boxShadow: 'none', height: 44, cursor: 'pointer', whiteSpace: 'nowrap',
+                  boxShadow: 'none', height: 48, cursor: 'pointer', whiteSpace: 'nowrap',
                   opacity: active ? 1 : 0.92,
                   transition: 'color 0.15s ease, opacity 0.15s ease',
                   outline: 'none',
@@ -165,10 +174,10 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
       )}
 
       {(() => {
-        const editable = !readonly && isEditing;
+        const editable = false;
         return (
-          <div onChange={editable ? () => setHasChanges(true) : undefined}>
-            {tab === 'general'     && <GeneralTab     carpeta={carpeta} subs={subs} proveedor={proveedor} editable={editable} hideImportes={hideImportes} />}
+          <div style={{ background: CANVAS }}>
+            {tab === 'general'     && <GeneralTab     carpeta={carpeta} subs={subs} proveedor={proveedor} hideImportes={hideImportes} canEditGeneral={canEditOriginalOc} ocLockReason={ocLockReason} onUpdateGeneral={(patch: Partial<Carpeta>) => commitCarpeta(current => ({ ...current, ...patch }))} />}
             {tab === 'articulos'   && <ArticulosTab   carpeta={carpeta} hideImportes={hideImportes} readonly={readonly} canEditOriginalOc={canEditOriginalOc} onUpdateArticulos={(articulos: Carpeta['articulos']) => commitCarpeta(current => ({ ...current, articulos }))} />}
             {tab === 'subcarpetas' && <SubcarpetasTab carpeta={carpeta} subs={subs} nextLetter={nextLetter} activeSub={activeSub} setActiveSub={setActiveSub} readonly={readonly} hideImportes={hideImportes} onCreateSubcarpeta={(subcarpeta: Subcarpeta) => commitCarpeta(current => ({ ...current, subcarpetas: [...current.subcarpetas, subcarpeta] }))} />}
             {tab === 'produccion'  && <ProduccionTab  carpeta={carpeta} proveedor={proveedor} editable={editable} />}
@@ -179,125 +188,141 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
         );
       })()}
       </div>
-
-      {/* ── Edit action bar ──────────────────────────────────── */}
-      {isEditing && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 32, paddingTop: 20, borderTop: `1px solid ${HAIRLINE}` }}>
-          <button onClick={() => { setIsEditing(false); setHasChanges(false); }} style={{ padding: '11px 22px', background: CANVAS, color: MUTED, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, fontSize: 14, cursor: 'pointer' }}>
-            Cancelar
-          </button>
-          <button
-            disabled={!hasChanges}
-            onClick={() => { setIsEditing(false); setHasChanges(false); alert('Cambios guardados.'); }}
-            style={{ padding: '11px 24px', background: hasChanges ? GREEN : HAIRLINE, color: hasChanges ? '#fff' : MUTED, border: 'none', borderRadius: 9999, fontSize: 14, fontWeight: 600, cursor: hasChanges ? 'pointer' : 'default', transition: 'background 0.15s' }}
-          >
-            Guardar cambios
-          </button>
-        </div>
-      )}
     </div>
   );
 }
 
 /* ── Shared primitives ─────────────────────────────────────────────── */
 
-function Card({ children, title }: { children: React.ReactNode; title?: string }) {
-  return (
-    <section style={{ minWidth: 0, background: CANVAS, borderBottom: `1px solid ${HAIRLINE}` }}>
-      {title && <div style={{ padding: '13px 16px', background: CANVAS, borderBottom: `1px solid ${HAIRLINE}`, fontSize: 13, fontWeight: 600, color: INK }}>{title}</div>}
-      <div style={{ padding: 16 }}>{children}</div>
-    </section>
-  );
-}
-
-function Field({ label, value, color }: { label: string; value: React.ReactNode; color?: string }) {
-  return (
-    <div>
-      <div style={{ fontSize: 12, fontWeight: 400, color: MUTED, letterSpacing: '-0.12px', marginBottom: 3 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 400, color: color || INK, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-    </div>
-  );
-}
-
 function Input({ label, defaultValue, type = 'text', placeholder, color }: { label: string; defaultValue?: string | number; type?: string; placeholder?: string; color?: string }) {
   return (
-    <div>
-      <label style={{ fontSize: 12, fontWeight: 400, color: MUTED, display: 'block', marginBottom: 4 }}>{label}</label>
-      <input
+    <FormField label={label}>
+      <AppInput
         type={type}
         defaultValue={defaultValue}
         placeholder={placeholder}
         style={{ width: '100%', padding: '10px 14px', fontSize: 17, fontWeight: 400, color: color || INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, outline: 'none' }}
       />
-    </div>
+    </FormField>
   );
 }
 
 /* ── Tab components ───────────────────────────────────────────────── */
 
-function GeneralTab({ carpeta, subs, proveedor, editable, hideImportes }: any) {
+function GeneralTab({ carpeta, subs, proveedor, hideImportes, canEditGeneral, ocLockReason, onUpdateGeneral }: any) {
   const isMobile = useIsMobile();
+  const [showGeneralEditModal, setShowGeneralEditModal] = useState(false);
+  const [generalForm, setGeneralForm] = useState({
+    pedidoSAP45: carpeta.pedidoSAP45 || '',
+    referenciaProveedor: carpeta.referenciaProveedor || '',
+    fechaEmbarqueEst: carpeta.fechaEmbarqueEst || '',
+    observaciones: carpeta.observaciones || '',
+  });
+
+  useEffect(() => {
+    setGeneralForm({
+      pedidoSAP45: carpeta.pedidoSAP45 || '',
+      referenciaProveedor: carpeta.referenciaProveedor || '',
+      fechaEmbarqueEst: carpeta.fechaEmbarqueEst || '',
+      observaciones: carpeta.observaciones || '',
+    });
+  }, [carpeta.id, carpeta.pedidoSAP45, carpeta.referenciaProveedor, carpeta.fechaEmbarqueEst, carpeta.observaciones]);
+
+  const setGeneralField = (field: 'pedidoSAP45' | 'referenciaProveedor' | 'fechaEmbarqueEst' | 'observaciones') =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setGeneralForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  const handleSaveGeneral = () => {
+    if (!canEditGeneral) return;
+    onUpdateGeneral({
+      pedidoSAP45: generalForm.pedidoSAP45.trim(),
+      referenciaProveedor: generalForm.referenciaProveedor.trim(),
+      fechaEmbarqueEst: generalForm.fechaEmbarqueEst,
+      observaciones: generalForm.observaciones.trim(),
+    });
+    setShowGeneralEditModal(false);
+  };
+
   const sectionHeaderStyle: React.CSSProperties = {
-    padding: '13px 16px',
+    padding: '14px 16px 0',
     background: CANVAS,
-    borderBottom: `1px solid ${HAIRLINE}`,
-    fontSize: 13,
-    fontWeight: 600,
+    fontSize: 12,
+    fontWeight: 700,
     color: INK,
+    letterSpacing: '0.02em',
+    textTransform: 'uppercase',
   };
   const sectionStyle: React.CSSProperties = {
     minWidth: 0,
-    borderBottom: `1px solid ${HAIRLINE}`,
+    display: 'grid',
+    gridTemplateRows: 'auto 1fr',
+    background: CANVAS,
+    overflow: 'hidden',
   };
 
   return (
-    <div style={{ overflow: 'hidden', background: CANVAS }}>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))' }}>
-      <section style={{ ...sectionStyle, borderRight: isMobile ? 'none' : `1px solid ${HAIRLINE}` }} aria-labelledby="general-header-data">
-        <div id="general-header-data" style={sectionHeaderStyle}>Datos de cabecera</div>
-        <div style={{ ...getAutoFitGridStyle(150, 14), padding: 16 }}>
+    <div style={{ display: 'grid', gap: 1, background: HAIRLINE }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1, background: HAIRLINE }}>
+      <section style={sectionStyle} aria-labelledby="general-header-data">
+        <div id="general-header-data" style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <span>Datos de cabecera</span>
+          {canEditGeneral && (
+            <AppButton
+              type="button"
+              size="sm"
+              variant="secondary"
+              icon={<Pencil size={13} />}
+              onClick={() => setShowGeneralEditModal(true)}
+            >
+              Editar sección
+            </AppButton>
+          )}
+        </div>
+        <div style={{ padding: 16 }}>
+        {!canEditGeneral && ocLockReason && (
+          <div style={{ marginBottom: 12, fontSize: 12, color: MUTED }}>
+            {ocLockReason}
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', columnGap: 24, rowGap: 18, alignItems: 'start' }}>
           <Field label="N° Carpeta" value={carpeta.numero} />
           <Field label="Fecha O/C" value={carpeta.fechaOC} />
           <Field label="Proveedor" value={proveedor?.nombre || '—'} />
           <Field label="País Origen" value={proveedor?.pais || '—'} />
-          {editable
-            ? <Input label="Pedido SAP Tx.45" defaultValue={carpeta.pedidoSAP45} placeholder="Ej. 4500012345" />
-            : <Field label="Pedido SAP Tx.45" value={carpeta.pedidoSAP45 || '—'} />
-          }
+          <Field label="Pedido SAP Tx.45" value={carpeta.pedidoSAP45 || '—'} />
           <Field label="Incoterm" value={carpeta.incoterm} />
           <Field label="Condición de Pago" value={carpeta.condPago} />
           <Field label="Moneda" value={carpeta.moneda} />
+        </div>
+          {carpeta.observaciones && (
+            <div style={{ marginTop: 18, padding: '12px 14px', background: 'rgba(180,83,9,0.05)', borderLeft: '3px solid #b45309' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309', marginBottom: 7, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Observaciones / reclamos</div>
+              <div style={{ fontSize: 14, color: '#b45309', lineHeight: 1.47, display: 'flex', gap: 8 }}><AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />{carpeta.observaciones}</div>
+            </div>
+          )}
         </div>
       </section>
 
       <section style={sectionStyle} aria-labelledby="general-header-reference">
         <div id="general-header-reference" style={sectionHeaderStyle}>{hideImportes ? 'Referencia' : 'Montos y referencia'}</div>
         <div style={{ padding: 16 }}>
-        <div style={getAutoFitGridStyle(150, 14)}>
-          {!hideImportes && (
-            <div style={{ gridColumn: '1 / -1' }}>
-              <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>Monto Total OC</div>
-              <div style={{ fontSize: 20, fontWeight: 600, color: INK, letterSpacing: '-0.01em' }}>{formatMoney(carpeta.montoTotal, carpeta.moneda)}</div>
-            </div>
-          )}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', columnGap: 24, rowGap: 18, alignItems: 'start' }}>
           <Field label="Fecha Embarque Est." value={carpeta.fechaEmbarqueEst || '—'} />
           <Field label="Ref. Proveedor" value={carpeta.referenciaProveedor || '—'} />
           <Field label="Despachante Habitual" value={getDespachante(proveedor?.despachante || '')?.nombre || '—'} />
+          {!hideImportes && (
+            <div style={{ justifySelf: 'stretch' }}>
+              <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>Monto Total OC</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: INK, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{carpeta.moneda} {carpeta.montoTotal.toLocaleString('en-US')}</div>
+            </div>
+          )}
         </div>
-        {!hideImportes && (
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${HAIRLINE}` }}>
-            <div style={{ fontSize: 12, color: MUTED, marginBottom: 12 }}>COEFICIENTE DE COSTO</div>
-            <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>Estimado</div>
-                <div style={{ fontSize: 21, fontWeight: 600, color: INK }}>{carpeta.coeficienteEst.toFixed(2)}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>Real</div>
-                <div style={{ fontSize: 21, fontWeight: 600, color: carpeta.coeficienteReal && Math.abs(carpeta.coeficienteReal - carpeta.coeficienteEst) > 0.05 * carpeta.coeficienteEst ? '#b84800' : INK }}>
-                  {carpeta.coeficienteReal?.toFixed(2) || '—'}
-                </div>
-              </div>
+        {!hideImportes && subs.length > 0 && (
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${HAIRLINE}` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: MUTED, marginBottom: 12, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Coeficiente de costo</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(120px, 1fr))', gap: 16, maxWidth: 360 }}>
+              <Field label="Estimado" value={carpeta.coeficienteEst.toFixed(2)} />
+              <Field label="Real" value={carpeta.coeficienteReal?.toFixed(2) || '—'} />
             </div>
           </div>
         )}
@@ -305,60 +330,48 @@ function GeneralTab({ carpeta, subs, proveedor, editable, hideImportes }: any) {
       </section>
 
       {subs.length > 0 && (
-        <section style={{ minWidth: 0, gridColumn: '1 / -1' }} aria-labelledby="general-header-shipments">
+        <section style={{ ...sectionStyle, gridColumn: '1 / -1' }} aria-labelledby="general-header-shipments">
           <div id="general-header-shipments" style={sectionHeaderStyle}>Embarques</div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(subs.length, 3)}, minmax(0, 1fr))`, gap: 8, padding: 16 }}>
-            {subs.map((s: Subcarpeta) => {
-              const ESTADO_COLORS: Record<string, { color: string; bg: string }> = {
-                'Activa':      { color: '#b45309', bg: 'rgba(180,83,9,0.08)'   },
-                'En Tránsito': { color: '#5b21b6', bg: 'rgba(91,33,182,0.08)'  },
-                'En Aduana':   { color: '#0066cc', bg: 'rgba(0,102,204,0.08)'  },
-                'Oficializado':{ color: '#1a5c38', bg: 'rgba(26,92,56,0.08)'   },
-                'Cerrada':     { color: '#6e6e73', bg: 'rgba(110,110,115,0.08)'},
-                'Recibida':    { color: '#1a7a4a', bg: 'rgba(26,122,74,0.08)'  },
-              };
-              const ESTADO_LABELS: Record<string, string> = {
-                'Activa':       'Pendiente de embarque',
-                'En Tránsito':  'En Tránsito',
-                'En Aduana':    'Arribado / Aduana',
-                'Oficializado': 'Oficializado',
-                'Cerrada':      'Cerrada',
-                'Recibida':     'Recibida en depósito',
-              };
-              const cfg = ESTADO_COLORS[s.estado] ?? { color: '#6e6e73', bg: 'rgba(110,110,115,0.08)' };
-              const label = ESTADO_LABELS[s.estado] ?? s.estado;
-              return (
-                <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', background: '#fafbfd', borderLeft: `3px solid ${cfg.color}`, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: INK, minWidth: 110 }}>{s.numero}</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: cfg.color, background: cfg.bg, borderRadius: 9999, padding: '3px 10px' }}>{label}</span>
-                  <CanalBadge canal={s.canalAduana} />
-                  <span style={{ fontSize: 12, color: MUTED, marginLeft: 'auto' }}>ETA {s.eta}</span>
-                </div>
-              );
-            })}
+            {subs.map((s: Subcarpeta) => <ShipmentCard key={s.id} numero={s.numero} estado={s.estado} transporte={s.transporte} eta={s.eta} canalAduana={s.canalAduana} />)}
           </div>
         </section>
       )}
       </div>
 
-      {(editable || carpeta.observaciones) && (
-        <section aria-labelledby="general-header-notes" style={{ borderTop: `1px solid ${HAIRLINE}` }}>
-          <div id="general-header-notes" style={sectionHeaderStyle}>Observaciones / reclamos</div>
-          <div style={{ padding: 16 }}>
-          {editable
-            ? <textarea
-                defaultValue={carpeta.observaciones}
-                rows={4}
-                placeholder="Ingresá observaciones, reclamos o notas sobre esta carpeta..."
-                style={{ width: '100%', padding: '12px 14px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 14, outline: 'none', resize: 'none', lineHeight: 1.5 }}
-              />
-            : <div style={{ fontSize: 15, color: '#b45309', lineHeight: 1.47, display: 'flex', gap: 8 }}>
-                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                {carpeta.observaciones}
-              </div>
-          }
+      {showGeneralEditModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 320, background: 'rgba(15, 23, 42, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ width: 'min(560px, 100%)', maxHeight: '90vh', background: '#fff', border: `1px solid ${HAIRLINE}`, borderRadius: 16, boxShadow: '0 22px 50px rgba(15, 23, 42, 0.22)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 16px', borderBottom: `1px solid ${HAIRLINE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: INK }}>Editar sección General</h2>
+              <AppButton type="button" aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={() => setShowGeneralEditModal(false)} icon={<X size={14} color={MUTED} />} style={{ borderRadius: 9999 }} />
+            </div>
+
+            <div style={{ padding: 16, display: 'grid', gap: 12, overflowY: 'auto' }}>
+              <FormField label="Pedido SAP Tx.45">
+                <input value={generalForm.pedidoSAP45} onChange={setGeneralField('pedidoSAP45')} placeholder="Ej. 4500012345" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+              </FormField>
+              <FormField label="Referencia proveedor">
+                <input value={generalForm.referenciaProveedor} onChange={setGeneralField('referenciaProveedor')} placeholder="Referencia interna" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+              </FormField>
+              <FormField label="Fecha embarque estimada">
+                <input type="date" value={generalForm.fechaEmbarqueEst} onChange={setGeneralField('fechaEmbarqueEst')} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+              </FormField>
+              <FormField label="Observaciones">
+                <textarea value={generalForm.observaciones} onChange={setGeneralField('observaciones')} rows={4} style={{ width: '100%', padding: '10px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
+              </FormField>
+            </div>
+
+            <div style={{ padding: '12px 16px', borderTop: `1px solid ${HAIRLINE}`, display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#fff' }}>
+              <AppButton type="button" variant="secondary" size="sm" onClick={() => setShowGeneralEditModal(false)}>
+                Cancelar
+              </AppButton>
+              <AppButton type="button" size="sm" onClick={handleSaveGeneral}>
+                Guardar cambios
+              </AppButton>
+            </div>
           </div>
-        </section>
+        </div>
       )}
     </div>
   );
@@ -367,15 +380,33 @@ function GeneralTab({ carpeta, subs, proveedor, editable, hideImportes }: any) {
 const EMPTY_ART_FORM = { codigoSAP: '', descripcion: '', linea: 'LCA', cantidadSolicitada: '', um: 'Kg', precioUnitario: '' };
 
 function ArticulosTab({ carpeta, readonly, hideImportes, canEditOriginalOc, onUpdateArticulos }: any) {
+  const isMobile = useIsMobile();
   const [articulos, setArticulos] = useState<any[]>(carpeta.articulos);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(EMPTY_ART_FORM);
   const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'todos' | 'saldo' | 'error'>('todos');
+  const [visibleCount, setVisibleCount] = useState(12);
+  const [expandedArticleId, setExpandedArticleId] = useState<string | null>(null);
   const hasExtendedFields = articulos.some((art: any) => art.ume || art.equivalencia || art.origenCarga || art.estadoValidacion);
 
   useEffect(() => {
     setArticulos(carpeta.articulos);
   }, [carpeta.articulos]);
+
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [query, filter]);
+
+  const filteredArticulos = articulos.filter((articulo: any) => {
+    const searchText = normalizeSearchTerm(`${articulo.codigoSAP} ${articulo.descripcion}`);
+    const matchesQuery = searchText.includes(normalizeSearchTerm(query));
+    const saldo = articulo.cantidadSolicitada - articulo.cantidadAsignada;
+    const hasError = articulo.estadoValidacion === 'Con error' || articulo.estadoValidacion === 'Duplicado';
+    return matchesQuery && (filter === 'todos' || (filter === 'saldo' && saldo !== 0) || (filter === 'error' && hasError));
+  });
+  const displayedArticulos = filteredArticulos.slice(0, visibleCount);
 
   const cols = [
     'Cód. SAP',
@@ -443,7 +474,7 @@ function ArticulosTab({ carpeta, readonly, hideImportes, canEditOriginalOc, onUp
     setForm(prev => ({ ...prev, [field]: e.target.value }));
 
   return (
-    <div>
+    <div style={{ background: CANVAS }}>
       {/* Empty state */}
       {articulos.length === 0 ? (
         <div style={{ padding: '64px 32px', textAlign: 'center', background: CANVAS }}>
@@ -451,108 +482,107 @@ function ArticulosTab({ carpeta, readonly, hideImportes, canEditOriginalOc, onUp
           <div style={{ fontSize: 16, fontWeight: 600, color: INK, marginBottom: 6 }}>Sin artículos cargados</div>
           <div style={{ fontSize: 14, color: MUTED, marginBottom: 24 }}>Esta carpeta aún no tiene artículos asociados.</div>
           {canEditOriginalOc && (
-            <Button onClick={() => { setForm(EMPTY_ART_FORM); setEditingArticleId(null); setShowModal(true); }}>
-              <Plus aria-hidden="true" /> Agregar primer ítem
-            </Button>
+            <AppButton onClick={() => { setForm(EMPTY_ART_FORM); setEditingArticleId(null); setShowModal(true); }} icon={<Plus aria-hidden="true" />}>
+              Agregar primer ítem
+            </AppButton>
           )}
         </div>
       ) : (
         <>
-          <div style={{ overflow: 'hidden', borderTop: `1px solid ${HAIRLINE}` }}>
+          <div style={{ overflow: 'hidden', background: CANVAS }}>
             {canEditOriginalOc && (
               <div style={{ minHeight: 52, padding: '8px 12px 8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: CANVAS, borderBottom: `1px solid ${HAIRLINE}` }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>Artículos de la orden</div>
                   <div style={{ fontSize: 12, color: MUTED }}>{articulos.length} {articulos.length === 1 ? 'ítem' : 'ítems'}</div>
                 </div>
-                <Button size="sm" onClick={() => { setForm(EMPTY_ART_FORM); setEditingArticleId(null); setShowModal(true); }}>
-                  <Plus aria-hidden="true" /> Agregar ítem
-                </Button>
+                <AppButton size="sm" onClick={() => { setForm(EMPTY_ART_FORM); setEditingArticleId(null); setShowModal(true); }} icon={<Plus aria-hidden="true" />}>
+                  Agregar ítem
+                </AppButton>
               </div>
             )}
-            <div style={tableScrollArea}>
-              <table style={getResponsiveTableStyle(1100)}>
-                <thead>
-                  <tr style={tableHeadRow}>
-                    {cols.map(col => (
-                      <th key={col} style={tableHeadCell}>{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {articulos.map((a: any, i: number) => {
-                    const saldo = a.cantidadSolicitada - a.cantidadAsignada;
-                    const pct = a.cantidadSolicitada > 0 ? (a.cantidadAsignada / a.cantidadSolicitada) * 100 : 0;
-                    const hasError = a.estadoValidacion === 'Con error' || a.estadoValidacion === 'Duplicado';
-                    const hasWarning = !hasError && a.estadoValidacion && a.estadoValidacion !== 'Válido';
-                    const rowBackground = hasError ? 'rgba(196,0,26,0.04)' : hasWarning ? 'rgba(180,83,9,0.05)' : CANVAS;
-                    const statusColor = hasError ? '#c4001a' : hasWarning ? '#b45309' : a.estadoValidacion === 'Válido' ? '#1a7a4a' : MUTED;
-                    const statusBackground = hasError ? 'rgba(196,0,26,0.10)' : hasWarning ? 'rgba(180,83,9,0.10)' : a.estadoValidacion === 'Válido' ? 'rgba(26,122,74,0.08)' : PARCHMENT;
-                    return (
-                      <tr key={a.id} style={{ borderBottom: i < articulos.length - 1 ? `1px solid ${HAIRLINE}` : 'none', background: rowBackground }}>
-                        <td style={{ padding: '14px 16px', fontSize: 14, fontWeight: 600, color: INK }}>{a.codigoSAP}</td>
-                        <td style={{ padding: '14px 16px', fontSize: 14, color: INK }}>{a.descripcion}</td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{ fontSize: 12, color: MUTED, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, padding: '2px 8px' }}>{a.linea}</span>
-                        </td>
-                        <td style={{ padding: '14px 16px', fontSize: 14, color: INK, fontVariantNumeric: 'tabular-nums' }}>{a.cantidadSolicitada.toLocaleString()}</td>
-                        <td style={{ padding: '14px 16px', fontSize: 13, color: MUTED }}>{a.um}</td>
-                        {hasExtendedFields && (
-                          <>
-                            <td style={{ padding: '14px 16px', fontSize: 13, color: MUTED }}>{a.ume || '—'}</td>
-                            <td style={{ padding: '14px 16px', fontSize: 13, color: MUTED }}>{a.equivalencia || '—'}</td>
-                          </>
-                        )}
-                        {!hideImportes && <>
-                          <td style={{ padding: '14px 16px', fontSize: 14, color: INK, fontVariantNumeric: 'tabular-nums' }}>{a.precioUnitario.toFixed(2)}</td>
-                          <td style={{ padding: '14px 16px', fontSize: 14, color: INK, fontVariantNumeric: 'tabular-nums' }}>
-                            {(a.cantidadSolicitada * a.precioUnitario).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                          </td>
-                        </>}
-                        <td style={{ padding: '14px 16px' }}>
-                          <div style={{ fontSize: 14, color: '#1a7a4a', fontVariantNumeric: 'tabular-nums' }}>{a.cantidadAsignada.toLocaleString()}</div>
-                          <div style={{ height: 3, background: HAIRLINE, borderRadius: 9999, marginTop: 4, overflow: 'hidden' }}>
-                            <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? '#1a7a4a' : '#b0b0b7', borderRadius: 9999 }} />
-                          </div>
-                        </td>
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{ fontSize: 15, fontWeight: 600, color: saldo === 0 ? '#1a7a4a' : saldo > 0 ? '#b45309' : '#c4001a', fontVariantNumeric: 'tabular-nums' }}>
-                            {saldo.toLocaleString()} {a.um}
-                          </span>
-                        </td>
-                        {hasExtendedFields && (
-                          <>
-                            <td style={{ padding: '14px 16px', fontSize: 12, color: MUTED }}>{a.origenCarga || 'Manual'}</td>
-                            <td style={{ padding: '14px 16px' }}>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 8px', borderRadius: 9999, background: statusBackground, fontSize: 12, color: statusColor, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                                {a.estadoValidacion || '—'}
-                              </div>
-                              {a.observacionesImportacion && (
-                                <div style={{ fontSize: 11, color: statusColor, marginTop: 6, maxWidth: 180, lineHeight: 1.4 }}>{a.observacionesImportacion}</div>
-                              )}
-                            </td>
-                          </>
-                        )}
-                        {canEditOriginalOc && (
-                          <td style={{ padding: '14px 16px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, whiteSpace: 'nowrap' }}>
-                              <Button variant="ghost" size="icon" aria-label={`Editar ${a.codigoSAP}`} title="Editar ítem" onClick={() => handleEditArticle(a)}>
-                                <Pencil aria-hidden="true" />
-                              </Button>
-                              <Button variant="ghost" size="icon" aria-label={`Eliminar ${a.codigoSAP}`} title="Eliminar ítem" onClick={() => handleDeleteArticle(a.id)} className="text-destructive hover:text-destructive">
-                                <Trash2 aria-hidden="true" />
-                              </Button>
-                            </div>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div style={{ padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
+              <FilterToolbar search={query} onSearchChange={setQuery} searchPlaceholder="Buscar por código o descripción" searchAriaLabel="Buscar artículos" options={[{ value: 'todos', label: 'Todos' }, { value: 'saldo', label: 'Con saldo' }, { value: 'error', label: 'Con error' }]} value={filter} onValueChange={setFilter} />
             </div>
+
+            {filteredArticulos.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: MUTED, fontSize: 14 }}>No hay artículos que coincidan con la búsqueda.</div>
+            ) : isMobile ? (
+              <div>
+                {displayedArticulos.map((a: any, i: number) => {
+                  const saldo = a.cantidadSolicitada - a.cantidadAsignada;
+                  const pct = a.cantidadSolicitada > 0 ? Math.min(100, (a.cantidadAsignada / a.cantidadSolicitada) * 100) : 0;
+                  const expanded = expandedArticleId === a.id;
+                  return (
+                    <article key={a.id} style={{ borderBottom: i < displayedArticulos.length - 1 ? `1px solid ${HAIRLINE}` : 'none' }}>
+                      <button onClick={() => setExpandedArticleId(expanded ? null : a.id)} aria-expanded={expanded} style={{ width: '100%', minHeight: 48, padding: 16, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, textAlign: 'left', background: CANVAS, border: 'none', cursor: 'pointer' }}>
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: INK }}>{a.codigoSAP}</span>
+                          <span style={{ display: 'block', marginTop: 2, fontSize: 14, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.descripcion}</span>
+                          <span style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
+                            <span><span style={{ display: 'block', fontSize: 10, fontWeight: 700, color: MUTED }}>SOLICITADO</span><span style={{ display: 'block', marginTop: 2, fontSize: 13, color: INK }}>{a.cantidadSolicitada.toLocaleString()} {a.um}</span></span>
+                            <span><span style={{ display: 'block', fontSize: 10, fontWeight: 700, color: MUTED }}>PENDIENTE</span><span style={{ display: 'block', marginTop: 2, fontSize: 13, fontWeight: 700, color: saldo === 0 ? '#1a7a4a' : '#b45309' }}>{saldo.toLocaleString()} {a.um}</span></span>
+                          </span>
+                          <span style={{ display: 'block', height: 4, marginTop: 12, borderRadius: 9999, background: HAIRLINE, overflow: 'hidden' }}><span style={{ display: 'block', width: `${pct}%`, height: '100%', background: pct === 100 ? '#1a7a4a' : '#b45309' }} /></span>
+                        </span>
+                        <ChevronDown aria-hidden="true" size={18} style={{ color: MUTED, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                      </button>
+                      {expanded && (
+                        <div style={{ padding: '0 16px 16px', background: '#fafbfd' }}>
+                          <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, borderTop: `1px solid ${HAIRLINE}` }}>
+                            <Field label="Línea" value={a.linea || '—'} /><Field label="Asignado" value={`${a.cantidadAsignada.toLocaleString()} ${a.um}`} />
+                            {a.ume && <Field label="UME" value={a.ume} />}{a.equivalencia && <Field label="Equivalencia" value={a.equivalencia} />}
+                            {!hideImportes && <><Field label="Precio unitario" value={a.precioUnitario.toFixed(2)} /><Field label="Importe" value={(a.cantidadSolicitada * a.precioUnitario).toLocaleString()} /></>}
+                            {a.origenCarga && <Field label="Origen" value={a.origenCarga} />}{a.estadoValidacion && <Field label="Validación" value={a.estadoValidacion} />}
+                          </div>
+                          {a.observacionesImportacion && <div style={{ marginTop: 12, fontSize: 13, color: '#b45309' }}>{a.observacionesImportacion}</div>}
+                          {canEditOriginalOc && (
+                            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                              <AppButton variant="secondary" size="xs" onClick={() => handleEditArticle(a)} icon={<Pencil aria-hidden="true" size={12} />}>
+                                Editar
+                              </AppButton>
+                              <AppButton variant="danger-soft" size="xs" onClick={() => handleDeleteArticle(a.id)} icon={<Trash2 aria-hidden="true" size={12} />}>
+                                Eliminar
+                              </AppButton>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={tableScrollArea}>
+                <table style={getResponsiveTableStyle(760)}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}><tr style={tableHeadRow}>{['Artículo', 'Solicitado', 'Asignado', 'Saldo', 'Validación', ''].map(col => <th key={col} style={{ ...tableHeadCell, textAlign: ['Solicitado', 'Asignado', 'Saldo'].includes(col) ? 'right' : 'left' }}>{col}</th>)}</tr></thead>
+                  <tbody>{displayedArticulos.map((a: any, i: number) => {
+                    const saldo = a.cantidadSolicitada - a.cantidadAsignada;
+                    const pct = a.cantidadSolicitada > 0 ? Math.min(100, (a.cantidadAsignada / a.cantidadSolicitada) * 100) : 0;
+                    return <tr key={a.id} style={{ borderBottom: i < displayedArticulos.length - 1 ? `1px solid ${HAIRLINE}` : 'none' }}>
+                      <td style={{ padding: '11px 16px' }}><div style={{ fontSize: 13, fontWeight: 700, color: INK }}>{a.codigoSAP}</div><div style={{ marginTop: 2, maxWidth: 360, fontSize: 13, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.descripcion}</div></td>
+                      <td style={{ padding: '11px 16px', textAlign: 'right', fontSize: 13, color: INK, fontVariantNumeric: 'tabular-nums' }}>{a.cantidadSolicitada.toLocaleString()} {a.um}</td>
+                      <td style={{ padding: '11px 16px', textAlign: 'right', minWidth: 120 }}><div style={{ fontSize: 13, color: INK }}>{a.cantidadAsignada.toLocaleString()} {a.um}</div><div style={{ height: 3, marginTop: 5, background: HAIRLINE, borderRadius: 9999, overflow: 'hidden' }}><div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? '#1a7a4a' : '#b45309' }} /></div></td>
+                      <td style={{ padding: '11px 16px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: saldo === 0 ? '#1a7a4a' : saldo > 0 ? '#b45309' : '#c4001a' }}>{saldo.toLocaleString()} {a.um}</td>
+                      <td style={{ padding: '11px 16px', fontSize: 12, color: a.estadoValidacion === 'Con error' ? '#c4001a' : MUTED }}>{a.estadoValidacion || '—'}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>
+                        {canEditOriginalOc && (
+                          <>
+                            <AppButton type="button" size="xs" variant="secondary" icon={<Pencil aria-hidden="true" size={14} />} aria-label={`Editar ${a.codigoSAP}`} onClick={() => handleEditArticle(a)} />
+                            <AppButton type="button" size="xs" variant="danger-soft" icon={<Trash2 aria-hidden="true" size={14} />} aria-label={`Eliminar ${a.codigoSAP}`} onClick={() => handleDeleteArticle(a.id)} style={{ marginLeft: 4 }} />
+                          </>
+                        )}
+                      </td>
+                    </tr>;
+                  })}</tbody>
+                </table>
+              </div>
+            )}
           </div>
-          <div style={{ fontSize: 12, color: MUTED, marginTop: 10 }}>{articulos.length} ítem(s)</div>
+          <div style={{ minHeight: 48, padding: '8px 4px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', fontSize: 12, color: MUTED }}>
+            <span>Mostrando {Math.min(visibleCount, filteredArticulos.length)} de {filteredArticulos.length} artículos</span>
+            {visibleCount < filteredArticulos.length && <AppButton variant="secondary" size="xs" onClick={() => setVisibleCount(count => count + 12)}>Mostrar 12 más</AppButton>}
+          </div>
         </>
       )}
 
@@ -562,9 +592,7 @@ function ArticulosTab({ carpeta, readonly, hideImportes, canEditOriginalOc, onUp
           <div style={{ background: CANVAS, borderRadius: 20, width: '100%', maxWidth: 500, margin: '0 16px', boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 28px 18px', borderBottom: `1px solid ${HAIRLINE}` }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: INK }}>{editingArticleId ? 'Editar artículo' : 'Nuevo artículo'}</h2>
-              <button onClick={resetForm} style={{ background: PARCHMENT, border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <X size={14} color={MUTED} />
-              </button>
+              <AppButton aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={resetForm} icon={<X size={14} color={MUTED} />} style={{ borderRadius: 9999 }} />
             </div>
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* SAP + Descripcion */}
@@ -608,10 +636,10 @@ function ArticulosTab({ carpeta, readonly, hideImportes, canEditOriginalOc, onUp
                 )}
               </div>
               <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-                <button onClick={resetForm} style={{ flex: 1, padding: '12px', background: PARCHMENT, color: MUTED, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={handleSaveArticle} disabled={!canSave} style={{ flex: 2, padding: '12px', background: canSave ? GREEN : HAIRLINE, color: canSave ? '#fff' : MUTED, border: 'none', borderRadius: 9999, fontSize: 13, fontWeight: 600, cursor: canSave ? 'pointer' : 'default' }}>
+                <AppButton onClick={resetForm} variant="secondary" size="sm" style={{ flex: 1 }}>Cancelar</AppButton>
+                <AppButton onClick={handleSaveArticle} disabled={!canSave} size="sm" style={{ flex: 2 }}>
                   {editingArticleId ? 'Guardar cambios' : 'Agregar artículo'}
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -676,9 +704,9 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
 
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ padding: isMobile ? 10 : 14, display: 'flex', flexDirection: 'column', gap: 10, background: CANVAS }}>
         {!readonly && (
-          <div style={{ minHeight: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '8px 12px 8px 16px', background: CANVAS, borderBottom: `1px solid ${HAIRLINE}` }}>
+          <div style={{ minHeight: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: '10px 2px 10px 2px', background: CANVAS, borderBottom: `1px solid ${HAIRLINE}` }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>Embarques parciales</div>
               <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
@@ -738,9 +766,7 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
                 </div>
                 <p style={{ margin: '4px 0 0', fontSize: 13, color: MUTED }}>Letra asignada automáticamente · Solo se permiten A, B y C</p>
               </div>
-              <button onClick={resetModal} style={{ background: PARCHMENT, border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                <X size={15} style={{ color: MUTED }} />
-              </button>
+              <AppButton aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={resetModal} icon={<X size={15} style={{ color: MUTED }} />} style={{ borderRadius: 9999, flexShrink: 0 }} />
             </div>
 
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -821,16 +847,12 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
               </div>
 
               <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-                <button onClick={resetModal} style={{ flex: 1, padding: '12px', background: PARCHMENT, color: MUTED, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, fontSize: 14, cursor: 'pointer' }}>
+                <AppButton onClick={resetModal} variant="secondary" size="sm" style={{ flex: 1 }}>
                   Cancelar
-                </button>
-                <button
-                  disabled={!canCreate}
-                  onClick={handleCreate}
-                  style={{ flex: 2, padding: '12px', background: canCreate ? GREEN : HAIRLINE, color: canCreate ? '#fff' : MUTED, border: 'none', borderRadius: 9999, fontSize: 14, fontWeight: 600, cursor: canCreate ? 'pointer' : 'default', transition: 'background 0.15s' }}
-                >
+                </AppButton>
+                <AppButton disabled={!canCreate} onClick={handleCreate} size="sm" style={{ flex: 2 }}>
                   Crear Embarque
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -843,22 +865,7 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
 function SubcarpetaCard({ sub, carpeta, expanded, onToggle, hideImportes }: any) {
   const hasInc = sub.incidencias?.length > 0;
   return (
-    <div style={{ border: `1px solid ${hasInc ? '#c4001a33' : HAIRLINE}`, borderRadius: 12, overflow: 'hidden', background: CANVAS }}>
-      <button onClick={onToggle} style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 12, padding: 16, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-        <span style={{ minWidth: 0 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 16, fontWeight: 600, color: INK }}>{sub.numero}</span>
-            <CanalBadge canal={sub.canalAduana} />
-          </span>
-          <span style={{ display: 'block', marginTop: 8, fontSize: 13, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.transporte} · {sub.buqueForwarder || 'Sin forwarder'}</span>
-          <span style={{ display: 'block', marginTop: 3, fontSize: 12, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>BL: {sub.blCrtAwb || '—'} · ETA {sub.eta || '—'}</span>
-        </span>
-        <span style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          {hasInc && <span style={{ fontSize: 13, color: '#c4001a', display: 'flex', alignItems: 'center', gap: 4 }}><AlertTriangle size={13} /> {sub.incidencias.length} incidencia(s)</span>}
-          <ChevronRight size={15} style={{ color: HAIRLINE, transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-        </span>
-      </button>
-
+    <ShipmentCard numero={sub.numero} estado={sub.estado} transporte={sub.transporte} eta={sub.eta} canalAduana={sub.canalAduana} forwarder={sub.buqueForwarder} documento={sub.blCrtAwb} incidentCount={hasInc ? sub.incidencias.length : 0} expanded={expanded} onToggle={onToggle}>
       {expanded && (
         <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${HAIRLINE}`, background: '#fafbfd' }}>
           <div style={{ paddingTop: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 16 }}>
@@ -910,7 +917,7 @@ function SubcarpetaCard({ sub, carpeta, expanded, onToggle, hideImportes }: any)
           )}
         </div>
       )}
-    </div>
+    </ShipmentCard>
   );
 }
 
@@ -921,7 +928,7 @@ function ProduccionTab({ carpeta, proveedor, editable }: any) {
     : '—';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 1, background: HAIRLINE }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(280px, 0.85fr) minmax(0, 1.65fr)', gap: 1, alignItems: 'stretch', background: HAIRLINE }}>
       <Card title="Confirmación del Proveedor">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {editable
@@ -978,9 +985,9 @@ function DocumentosTab({ carpeta, subs, readonly }: any) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: isMobile ? 10 : 14, display: 'flex', flexDirection: 'column', gap: 10, background: CANVAS }}>
       {!readonly && (
-        <div style={{ padding: 16, borderBottom: `1px solid ${HAIRLINE}` }}>
+        <div style={{ padding: '2px 2px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: CANVAS }}>
           <div style={{ border: `1px dashed ${HAIRLINE}`, borderRadius: 12, padding: '28px 24px', textAlign: 'center', background: '#fafbfd', cursor: 'pointer' }}>
             <Upload size={22} style={{ color: MUTED, margin: '0 auto 8px' }} />
             <div style={{ fontSize: 14, fontWeight: 600, color: INK, marginBottom: 3 }}>Agregar documentos</div>
@@ -989,7 +996,7 @@ function DocumentosTab({ carpeta, subs, readonly }: any) {
         </div>
       )}
       {allDocs.length > 0 && (
-        <div style={{ overflow: 'hidden' }}>
+        <div style={{ overflow: 'hidden', background: CANVAS }}>
           {isMobile ? (
             <div>
               {allDocs.map((doc: any, i: number) => {
@@ -1061,11 +1068,28 @@ function DocumentosTab({ carpeta, subs, readonly }: any) {
 
 function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
   const isMobile = useIsMobile();
-  const sub = (subs as Subcarpeta[])[0];
+  const subcarpetas = subs as Subcarpeta[];
+  const [selectedSubId, setSelectedSubId] = useState<string>(subcarpetas[0]?.id ?? '');
+
+  useEffect(() => {
+    if (subcarpetas.length > 0 && !subcarpetas.some(item => item.id === selectedSubId)) setSelectedSubId(subcarpetas[0].id);
+  }, [subcarpetas, selectedSubId]);
+
+  const sub = subcarpetas.find(item => item.id === selectedSubId) ?? subcarpetas[0];
   if (!sub) return <div style={{ textAlign: 'center', padding: '64px', color: MUTED }}>Sin subcarpetas para gestionar aduana.</div>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 1, background: HAIRLINE }}>
+    <div>
+      <div style={{ minHeight: 64, padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderBottom: `1px solid ${HAIRLINE}`, background: '#fafbfd' }}>
+        <div><div style={{ fontSize: 12, color: MUTED }}>Gestionando embarque</div><div style={{ marginTop: 2, fontSize: 14, fontWeight: 700, color: INK }}>{sub.numero} · {sub.estado}</div></div>
+        {subcarpetas.length > 1 && (
+          <Select value={selectedSubId} onValueChange={setSelectedSubId}>
+            <SelectTrigger aria-label="Seleccionar embarque" style={{ width: isMobile ? '100%' : 240, minHeight: 42, borderRadius: 12, background: CANVAS }}><SelectValue /></SelectTrigger>
+            <SelectContent>{subcarpetas.map(item => <SelectItem key={item.id} value={item.id}>{item.numero} · {item.estado}</SelectItem>)}</SelectContent>
+          </Select>
+        )}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 1, alignItems: 'stretch', background: HAIRLINE }}>
       <Card title="Estado Aduanero AFIP">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {editable
@@ -1151,6 +1175,7 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
           </button>
         </div>
       </Card>
+      </div>
     </div>
   );
 }
@@ -1162,7 +1187,7 @@ function CosteoTab({ carpeta, editable }: any) {
   const alertColor = desvPct !== null && Math.abs(desvPct) > 5 ? '#b84800' : '#1a7a4a';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 1, background: HAIRLINE }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 1, alignItems: 'stretch', background: HAIRLINE }}>
       <Card title="Coeficiente de Costo">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ padding: '20px', background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 14 }}>

@@ -1,21 +1,18 @@
-import { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, X, AlertTriangle, Users, Shield, Package, Ship, ChevronDown } from 'lucide-react';
-import { fieldLabel, formInput, getModalDestructiveButtonStyle, getModalPrimaryButtonStyle, getModalSecondaryButtonStyle, getModalShellStyle, getPrimaryButtonStyle, getResponsiveTableStyle, getSearchWrapStyle, modalBody, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageActions, pageHeader, pageShell, searchInput, tableScrollArea, tableShell } from './chromeStyles';
+import { useState, type ReactNode } from 'react';
+import { Plus, Edit2, Trash2, X, AlertTriangle, Users, Shield, Package, Ship, ChevronDown } from 'lucide-react';
+import { fieldLabel, formInput, getModalDestructiveButtonStyle, getModalPrimaryButtonStyle, getModalSecondaryButtonStyle, getModalShellStyle, getResponsiveTableStyle, modalBody, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageActions, pageHeader, pageShell, tableScrollArea, tableShell } from './chromeStyles';
 import {
   AUDIT_LOG, ARTICULOS_CATALOGO, PROVEEDORES,
   ROLE_LABELS,
   type AppUser, type AuditEntry, type ArticuloCatalogo, type Proveedor, type Role,
 } from './mockData';
 import { useIsMobile } from './ui/use-mobile';
+import { SearchField, normalizeSearchTerm } from './SearchField';
+import { color } from './theme';
+import { AppButton } from './AppButton';
+import { FilterToolbar } from './FilterToolbar';
 
-const INK      = '#1d1d1f';
-const MUTED    = '#6e6e73';
-const PARCHMENT= '#f8fafc';
-const HAIRLINE = '#d2d2d7';
-const GREEN    = '#1a5c38';
-const VIOLET   = '#5b21b6';
-const CANVAS   = '#ffffff';
-const STICKY_ACTION_BACKGROUND = '#fdfefe';
+const { ink: INK, muted: MUTED, parchment: PARCHMENT, hairline: HAIRLINE, brand: GREEN, violet: VIOLET, canvas: CANVAS, surface: STICKY_ACTION_BACKGROUND } = color;
 
 const ALL_ROLES: Role[] = ['operator', 'director', 'commercial', 'treasury', 'warehouse', 'dispatcher', 'admin'];
 
@@ -36,6 +33,33 @@ function RoleBadge({ role }: { role: Role }) {
       {ROLE_LABELS[role]}
     </span>
   );
+}
+
+function DetailToggleButton({ expanded, onClick }: { expanded: boolean; onClick: () => void }) {
+  return (
+    <AppButton type="button" variant="tertiary" size="xs" onClick={onClick} style={{ padding: 0 }}>
+      <span>{expanded ? 'Ver menos' : 'Ver más'}</span>
+      <ChevronDown size={12} style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
+    </AppButton>
+  );
+}
+
+function RowActionIconButton({ onClick, icon, danger = false }: { onClick: () => void; icon: ReactNode; danger?: boolean }) {
+  return (
+    <AppButton
+      type="button"
+      size="xs"
+      variant={danger ? 'danger-soft' : 'secondary'}
+      onClick={onClick}
+      icon={icon}
+      style={{ borderRadius: 8 }}
+    >
+    </AppButton>
+  );
+}
+
+function EmptyTableState({ message }: { message: string }) {
+  return <div style={{ textAlign: 'center', padding: 48, color: MUTED, fontSize: 14 }}>{message}</div>;
 }
 
 // --- Users Tab ----------------------------------------------------------------
@@ -59,12 +83,12 @@ function UsersTab({ users, onUsersChange }: { users: AppUser[]; onUsersChange: (
   const isMobile = useIsMobile();
 
   const filtered = users.filter(u => {
-    const q = search.toLowerCase();
+    const q = normalizeSearchTerm(search);
     return !q
-      || `${u.nombre} ${u.apellido}`.toLowerCase().includes(q)
-      || u.username.toLowerCase().includes(q)
-      || u.email.toLowerCase().includes(q)
-      || u.roles.some(role => ROLE_LABELS[role].toLowerCase().includes(q));
+      || normalizeSearchTerm(`${u.nombre} ${u.apellido}`).includes(q)
+      || normalizeSearchTerm(u.username).includes(q)
+      || normalizeSearchTerm(u.email).includes(q)
+      || u.roles.some(role => normalizeSearchTerm(ROLE_LABELS[role]).includes(q));
   });
 
   const openCreate = () => { setForm(EMPTY_USER); setModal({ mode: 'create' }); };
@@ -103,24 +127,21 @@ function UsersTab({ users, onUsersChange }: { users: AppUser[]; onUsersChange: (
     });
   };
 
-  const canSave = form.username.trim() && form.nombre.trim() && form.apellido.trim() && form.email.trim() && form.roles.length > 0;
+  const canSave = Boolean(form.username.trim() && form.nombre.trim() && form.apellido.trim() && form.email.trim() && form.roles.length > 0);
   const getRolesLabel = (roles: Role[]) => roles.map(role => ROLE_LABELS[role]).join(', ');
   const toggleExpandedUser = (id: string) => setExpandedUserId(current => current === id ? null : id);
 
   return (
     <div>
       <div style={{ ...pageActions, justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button onClick={openCreate} style={getPrimaryButtonStyle()}>
+        <AppButton onClick={openCreate} size="sm">
           <Plus size={13} /> Nuevo Usuario
-        </button>
+        </AppButton>
       </div>
 
       <div style={tableShell}>
         <div style={{ padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
-          <div style={{ ...getSearchWrapStyle(380), minWidth: 0 }}>
-            <Search size={14} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre, email o rol..." style={searchInput} />
-          </div>
+          <div style={{ width: '100%', maxWidth: 380 }}><SearchField value={search} onChange={setSearch} placeholder="Buscar por nombre, email o rol..." /></div>
         </div>
         {isMobile ? (
         <div>
@@ -141,17 +162,10 @@ function UsersTab({ users, onUsersChange }: { users: AppUser[]; onUsersChange: (
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10, paddingLeft: 42 }}>
-                <button onClick={() => toggleExpandedUser(u.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                  <span>{expandedUserId === u.id ? 'Ver menos' : 'Ver más'}</span>
-                  <ChevronDown size={12} style={{ transform: expandedUserId === u.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                </button>
+                <DetailToggleButton expanded={expandedUserId === u.id} onClick={() => toggleExpandedUser(u.id)} />
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => openEdit(u)} style={{ padding: '6px 8px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: MUTED }}>
-                    <Edit2 size={12} />
-                  </button>
-                  <button onClick={() => setDeleteConfirm(u.id)} style={{ padding: '6px 8px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: '#c4001a' }}>
-                    <Trash2 size={12} />
-                  </button>
+                  <RowActionIconButton onClick={() => openEdit(u)} icon={<Edit2 size={12} />} />
+                  <RowActionIconButton onClick={() => setDeleteConfirm(u.id)} icon={<Trash2 size={12} />} danger />
                 </div>
               </div>
               {expandedUserId === u.id && (
@@ -203,17 +217,10 @@ function UsersTab({ users, onUsersChange }: { users: AppUser[]; onUsersChange: (
                   <td style={{ padding: '11px 16px', fontSize: 12, color: MUTED, lineHeight: 1.35 }}>{getRolesLabel(u.roles)}</td>
                   <td style={{ padding: '11px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <button onClick={() => toggleExpandedUser(u.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                        <span>{expandedUserId === u.id ? 'Ver menos' : 'Ver más'}</span>
-                        <ChevronDown size={12} style={{ transform: expandedUserId === u.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                      </button>
+                      <DetailToggleButton expanded={expandedUserId === u.id} onClick={() => toggleExpandedUser(u.id)} />
                       <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => openEdit(u)} style={{ padding: '5px 8px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: MUTED }}>
-                        <Edit2 size={12} />
-                      </button>
-                      <button onClick={() => setDeleteConfirm(u.id)} style={{ padding: '5px 8px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: '#c4001a' }}>
-                        <Trash2 size={12} />
-                      </button>
+                      <RowActionIconButton onClick={() => openEdit(u)} icon={<Edit2 size={12} />} />
+                      <RowActionIconButton onClick={() => setDeleteConfirm(u.id)} icon={<Trash2 size={12} />} danger />
                       </div>
                     </div>
                   </td>
@@ -249,7 +256,7 @@ function UsersTab({ users, onUsersChange }: { users: AppUser[]; onUsersChange: (
         </table>
         </div>
         )}
-        {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 48, color: MUTED }}>Sin usuarios encontrados.</div>}
+        {filtered.length === 0 && <EmptyTableState message="Sin usuarios encontrados." />}
       </div>
 
       {/* Create / Edit Modal */}
@@ -320,7 +327,7 @@ function UsersTab({ users, onUsersChange }: { users: AppUser[]; onUsersChange: (
               </div>
               <div style={modalFooter}>
                 <button onClick={closeModal} style={{ ...getModalSecondaryButtonStyle(), fontSize: 13 }}>Cancelar</button>
-                <button onClick={handleSave} disabled={!canSave} style={{ ...getModalPrimaryButtonStyle(canSave), fontSize: 13 }}>
+                <button onClick={handleSave} disabled={!canSave} style={{ ...getModalPrimaryButtonStyle(!!canSave), fontSize: 13 }}>
                   {modal.mode === 'create' ? 'Crear Usuario' : 'Guardar Cambios'}
                 </button>
               </div>
@@ -357,8 +364,8 @@ function AuditTab({ extraEntries }: { extraEntries: AuditEntry[] }) {
   const allEntries = [...extraEntries, ...AUDIT_LOG].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   const filtered = allEntries.filter(e => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || e.userName.toLowerCase().includes(q) || e.action.toLowerCase().includes(q) || e.entityId.toLowerCase().includes(q) || e.detail.toLowerCase().includes(q);
+    const q = normalizeSearchTerm(search);
+    const matchSearch = !q || normalizeSearchTerm(e.userName).includes(q) || normalizeSearchTerm(e.action).includes(q) || normalizeSearchTerm(e.entityId).includes(q) || normalizeSearchTerm(e.detail).includes(q);
     const matchRole   = roleFilter === 'Todos' || e.userRole === roleFilter;
     return matchSearch && matchRole;
   });
@@ -372,18 +379,8 @@ function AuditTab({ extraEntries }: { extraEntries: AuditEntry[] }) {
   return (
     <div>
       <div style={tableShell}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd', flexWrap: 'wrap' }}>
-          <div style={{ ...getSearchWrapStyle(380), flex: '1 1 320px', minWidth: 0 }}>
-            <Search size={14} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por usuario, acción, entidad..." style={searchInput} />
-          </div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {(['Todos', ...ALL_ROLES] as (Role | 'Todos')[]).map(r => (
-            <button key={r} onClick={() => setRoleFilter(r)} style={{ padding: '5px 12px', fontSize: 12, borderRadius: 9999, cursor: 'pointer', border: roleFilter === r ? `1px solid ${r === 'Todos' ? GREEN : ROLE_COLORS[r as Role]}44` : '1px solid transparent', color: roleFilter === r ? (r === 'Todos' ? GREEN : ROLE_COLORS[r as Role]) : MUTED, background: roleFilter === r ? (r === 'Todos' ? 'rgba(26,92,56,0.08)' : `${ROLE_COLORS[r as Role]}12`) : 'transparent' }}>
-              {r === 'Todos' ? 'Todos' : ROLE_LABELS[r as Role]}
-            </button>
-          ))}
-          </div>
+        <div style={{ padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
+          <FilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por usuario, acción, entidad..." searchAriaLabel="Buscar auditoría" options={(['Todos', ...ALL_ROLES] as (Role | 'Todos')[]).map(role => ({ value: role, label: role === 'Todos' ? 'Todos' : ROLE_LABELS[role] }))} value={roleFilter} onValueChange={setRoleFilter} />
         </div>
         {isMobile ? (
         <div>
@@ -398,10 +395,7 @@ function AuditTab({ extraEntries }: { extraEntries: AuditEntry[] }) {
                   <RoleBadge role={e.userRole} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 10 }}>
-                <button onClick={() => toggleExpandedAudit(e.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                  <span>{expandedAuditId === e.id ? 'Ver menos' : 'Ver más'}</span>
-                  <ChevronDown size={12} style={{ transform: expandedAuditId === e.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                </button>
+                <DetailToggleButton expanded={expandedAuditId === e.id} onClick={() => toggleExpandedAudit(e.id)} />
               </div>
               {expandedAuditId === e.id && (
                 <div style={{ display: 'grid', gap: 10, marginTop: 12, paddingTop: 10, borderTop: `1px solid ${HAIRLINE}` }}>
@@ -438,10 +432,7 @@ function AuditTab({ extraEntries }: { extraEntries: AuditEntry[] }) {
                   <td style={{ padding: '12px 14px' }}><RoleBadge role={e.userRole} /></td>
                   <td style={{ padding: '12px 14px', fontSize: 13, color: INK }}>{e.action}</td>
                   <td style={{ padding: '12px 14px' }}>
-                    <button onClick={() => toggleExpandedAudit(e.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                      <span>{expandedAuditId === e.id ? 'Ver menos' : 'Ver más'}</span>
-                      <ChevronDown size={12} style={{ transform: expandedAuditId === e.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                    </button>
+                    <DetailToggleButton expanded={expandedAuditId === e.id} onClick={() => toggleExpandedAudit(e.id)} />
                   </td>
                 </tr>
                 {expandedAuditId === e.id && (
@@ -466,7 +457,7 @@ function AuditTab({ extraEntries }: { extraEntries: AuditEntry[] }) {
           </tbody>
         </table>
         )}
-        {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 48, color: MUTED }}>Sin registros de auditoría.</div>}
+        {filtered.length === 0 && <EmptyTableState message="Sin registros de auditoría." />}
       </div>
       <div style={{ marginTop: 8, fontSize: 12, color: MUTED }}>{filtered.length} registro(s)</div>
     </div>
@@ -487,8 +478,8 @@ function ArticlesTab() {
   const isMobile = useIsMobile();
 
   const filtered = arts.filter(a => {
-    const q = search.toLowerCase();
-    return !q || a.codigoSAP.includes(q) || a.descripcion.toLowerCase().includes(q) || a.linea.toLowerCase().includes(q);
+    const q = normalizeSearchTerm(search);
+    return !q || normalizeSearchTerm(a.codigoSAP).includes(q) || normalizeSearchTerm(a.descripcion).includes(q) || normalizeSearchTerm(a.linea).includes(q);
   });
 
   const f = (field: keyof ArtForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -504,20 +495,17 @@ function ArticlesTab() {
     setModal(null);
   };
 
-  const canSave = form.codigoSAP.trim() && form.descripcion.trim() && Number(form.precioRef) > 0;
+  const canSave = Boolean(form.codigoSAP.trim() && form.descripcion.trim() && Number(form.precioRef) > 0);
   const toggleExpandedArticle = (id: string) => setExpandedArticleId(current => current === id ? null : id);
 
   return (
     <div>
       <div style={tableShell}>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd', flexWrap: 'wrap' }}>
-          <div style={{ ...getSearchWrapStyle(380), flex: '1 1 320px', minWidth: 0 }}>
-            <Search size={14} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por cód. SAP, descripción, línea..." style={searchInput} />
-          </div>
-          <button onClick={() => { setForm(EMPTY_ART); setModal({ mode: 'create' }); }} style={getPrimaryButtonStyle()}>
+          <div style={{ flex: '1 1 320px', minWidth: 0 }}><SearchField value={search} onChange={setSearch} placeholder="Buscar por cód. SAP, descripción, línea..." /></div>
+          <AppButton onClick={() => { setForm(EMPTY_ART); setModal({ mode: 'create' }); }} size="sm">
             <Plus size={13} /> Nuevo Artículo
-          </button>
+          </AppButton>
         </div>
         {isMobile ? (
         <div>
@@ -528,10 +516,10 @@ function ArticlesTab() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: INK }}>{a.codigoSAP}</div>
                   <div style={{ fontSize: 13, color: INK, marginTop: 4, lineHeight: 1.45 }}>{a.descripcion}</div>
                 </div>
-                <button onClick={() => { setForm({ codigoSAP: a.codigoSAP, descripcion: a.descripcion, linea: a.linea, um: a.um, precioRef: String(a.precioRef), estado: a.estado }); setModal({ mode: 'edit', art: a }); }}
-                  style={{ padding: '7px 10px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: MUTED, flexShrink: 0 }}>
-                  <Edit2 size={12} />
-                </button>
+                <RowActionIconButton
+                  onClick={() => { setForm({ codigoSAP: a.codigoSAP, descripcion: a.descripcion, linea: a.linea, um: a.um, precioRef: String(a.precioRef), estado: a.estado }); setModal({ mode: 'edit', art: a }); }}
+                  icon={<Edit2 size={12} />}
+                />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
                 <div>
@@ -552,10 +540,7 @@ function ArticlesTab() {
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 10 }}>
-                <button onClick={() => toggleExpandedArticle(a.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                  <span>{expandedArticleId === a.id ? 'Ver menos' : 'Ver más'}</span>
-                  <ChevronDown size={12} style={{ transform: expandedArticleId === a.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                </button>
+                <DetailToggleButton expanded={expandedArticleId === a.id} onClick={() => toggleExpandedArticle(a.id)} />
               </div>
               {expandedArticleId === a.id && (
                 <div style={{ display: 'grid', gap: 10, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${HAIRLINE}` }}>
@@ -596,14 +581,11 @@ function ArticlesTab() {
                   <td style={{ padding: '13px 16px', fontSize: 13, fontWeight: 600, color: INK, fontVariantNumeric: 'tabular-nums' }}>${a.precioRef.toFixed(2)}</td>
                   <td style={{ padding: '13px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <button onClick={() => toggleExpandedArticle(a.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                        <span>{expandedArticleId === a.id ? 'Ver menos' : 'Ver más'}</span>
-                        <ChevronDown size={12} style={{ transform: expandedArticleId === a.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                      </button>
-                      <button onClick={() => { setForm({ codigoSAP: a.codigoSAP, descripcion: a.descripcion, linea: a.linea, um: a.um, precioRef: String(a.precioRef), estado: a.estado }); setModal({ mode: 'edit', art: a }); }}
-                        style={{ padding: '5px 8px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: MUTED }}>
-                        <Edit2 size={12} />
-                      </button>
+                      <DetailToggleButton expanded={expandedArticleId === a.id} onClick={() => toggleExpandedArticle(a.id)} />
+                      <RowActionIconButton
+                        onClick={() => { setForm({ codigoSAP: a.codigoSAP, descripcion: a.descripcion, linea: a.linea, um: a.um, precioRef: String(a.precioRef), estado: a.estado }); setModal({ mode: 'edit', art: a }); }}
+                        icon={<Edit2 size={12} />}
+                      />
                     </div>
                   </td>
                   <td style={{ position: 'sticky', right: 0, zIndex: 1, background: STICKY_ACTION_BACKGROUND, padding: '13px 16px', boxShadow: '-8px 0 16px rgba(15,23,42,0.05)' }}>
@@ -634,7 +616,7 @@ function ArticlesTab() {
         </table>
         </div>
         )}
-        {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 48, color: MUTED }}>Sin artículos.</div>}
+        {filtered.length === 0 && <EmptyTableState message="Sin artículos." />}
       </div>
 
       {modal && (
@@ -642,9 +624,7 @@ function ArticlesTab() {
           <div style={{ background: CANVAS, borderRadius: 20, width: '100%', maxWidth: 480, margin: '0 16px', boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 28px 18px', borderBottom: `1px solid ${HAIRLINE}` }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: INK }}>{modal.mode === 'create' ? 'Nuevo Artículo' : 'Editar Artículo'}</h2>
-              <button onClick={() => setModal(null)} style={{ background: PARCHMENT, border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <X size={14} color={MUTED} />
-              </button>
+              <AppButton aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={() => setModal(null)} icon={<X size={14} color={MUTED} />} style={{ borderRadius: 9999 }} />
             </div>
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               {[['codigoSAP', 'CÓD. SAP *', '1000XXX'], ['descripcion', 'DESCRIPCIÓN *', 'Papel Offset 80g...']].map(([field, label, ph]) => (
@@ -680,10 +660,10 @@ function ArticlesTab() {
                 </select>
               </div>
               <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-                <button onClick={() => setModal(null)} style={{ flex: 1, padding: '11px', background: PARCHMENT, color: MUTED, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={handleSave} disabled={!canSave} style={{ flex: 2, padding: '11px', background: canSave ? GREEN : HAIRLINE, color: canSave ? '#fff' : MUTED, border: 'none', borderRadius: 9999, fontSize: 13, fontWeight: 600, cursor: canSave ? 'pointer' : 'default' }}>
+                <AppButton onClick={() => setModal(null)} variant="secondary" size="sm" style={{ flex: 1 }}>Cancelar</AppButton>
+                <AppButton onClick={handleSave} disabled={!canSave} size="sm" style={{ flex: 2 }}>
                   {modal.mode === 'create' ? 'Crear Artículo' : 'Guardar'}
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -707,8 +687,8 @@ function ProvidersTab() {
   const isMobile = useIsMobile();
 
   const filtered = provs.filter(p => {
-    const q = search.toLowerCase();
-    return !q || p.nombre.toLowerCase().includes(q) || p.pais.toLowerCase().includes(q);
+    const q = normalizeSearchTerm(search);
+    return !q || normalizeSearchTerm(p.nombre).includes(q) || normalizeSearchTerm(p.pais).includes(q);
   });
 
   const f = (field: keyof ProvForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -724,20 +704,17 @@ function ProvidersTab() {
     setModal(null);
   };
 
-  const canSave = form.nombre.trim() && form.pais.trim();
+  const canSave = Boolean(form.nombre.trim() && form.pais.trim());
   const toggleExpandedProvider = (id: string) => setExpandedProviderId(current => current === id ? null : id);
 
   return (
     <div>
       <div style={tableShell}>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', padding: '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd', flexWrap: 'wrap' }}>
-          <div style={{ ...getSearchWrapStyle(380), flex: '1 1 320px', minWidth: 0 }}>
-            <Search size={14} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nombre o país..." style={searchInput} />
-          </div>
-          <button onClick={() => { setForm(EMPTY_PROV); setModal({ mode: 'create' }); }} style={getPrimaryButtonStyle()}>
+          <div style={{ flex: '1 1 320px', minWidth: 0 }}><SearchField value={search} onChange={setSearch} placeholder="Buscar por nombre o país..." /></div>
+          <AppButton onClick={() => { setForm(EMPTY_PROV); setModal({ mode: 'create' }); }} size="sm">
             <Plus size={13} /> Nuevo Proveedor
-          </button>
+          </AppButton>
         </div>
         {isMobile ? (
         <div>
@@ -748,10 +725,10 @@ function ProvidersTab() {
                   <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>{p.nombre}</div>
                   <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{p.pais}</div>
                 </div>
-                <button onClick={() => { setForm({ nombre: p.nombre, pais: p.pais, incoterm: p.incoterm, condPago: p.condPago, diasProd: String(p.diasProd), diasTransito: String(p.diasTransito || p.diasTransitoTerrestre), moneda: p.moneda }); setModal({ mode: 'edit', prov: p }); }}
-                  style={{ padding: '7px 10px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: MUTED, flexShrink: 0 }}>
-                  <Edit2 size={12} />
-                </button>
+                <RowActionIconButton
+                  onClick={() => { setForm({ nombre: p.nombre, pais: p.pais, incoterm: p.incoterm, condPago: p.condPago, diasProd: String(p.diasProd), diasTransito: String(p.diasTransito || p.diasTransitoTerrestre), moneda: p.moneda }); setModal({ mode: 'edit', prov: p }); }}
+                  icon={<Edit2 size={12} />}
+                />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
                 <div>
@@ -776,10 +753,7 @@ function ProvidersTab() {
                 <div style={{ fontSize: 12, color: MUTED, marginTop: 2, lineHeight: 1.45 }}>{p.condPago}</div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: 10 }}>
-                <button onClick={() => toggleExpandedProvider(p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                  <span>{expandedProviderId === p.id ? 'Ver menos' : 'Ver más'}</span>
-                  <ChevronDown size={12} style={{ transform: expandedProviderId === p.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                </button>
+                <DetailToggleButton expanded={expandedProviderId === p.id} onClick={() => toggleExpandedProvider(p.id)} />
               </div>
               {expandedProviderId === p.id && (
                 <div style={{ display: 'grid', gap: 10, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${HAIRLINE}` }}>
@@ -820,14 +794,11 @@ function ProvidersTab() {
                   <td style={{ padding: '13px 14px', fontSize: 13, color: INK, fontVariantNumeric: 'tabular-nums' }}>{p.diasTransito || p.diasTransitoTerrestre}d</td>
                   <td style={{ padding: '13px 14px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <button onClick={() => toggleExpandedProvider(p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: MUTED, fontSize: 12, fontWeight: 600 }}>
-                        <span>{expandedProviderId === p.id ? 'Ver menos' : 'Ver más'}</span>
-                        <ChevronDown size={12} style={{ transform: expandedProviderId === p.id ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }} />
-                      </button>
-                      <button onClick={() => { setForm({ nombre: p.nombre, pais: p.pais, incoterm: p.incoterm, condPago: p.condPago, diasProd: String(p.diasProd), diasTransito: String(p.diasTransito || p.diasTransitoTerrestre), moneda: p.moneda }); setModal({ mode: 'edit', prov: p }); }}
-                        style={{ padding: '5px 8px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 8, cursor: 'pointer', color: MUTED }}>
-                        <Edit2 size={12} />
-                      </button>
+                      <DetailToggleButton expanded={expandedProviderId === p.id} onClick={() => toggleExpandedProvider(p.id)} />
+                      <RowActionIconButton
+                        onClick={() => { setForm({ nombre: p.nombre, pais: p.pais, incoterm: p.incoterm, condPago: p.condPago, diasProd: String(p.diasProd), diasTransito: String(p.diasTransito || p.diasTransitoTerrestre), moneda: p.moneda }); setModal({ mode: 'edit', prov: p }); }}
+                        icon={<Edit2 size={12} />}
+                      />
                     </div>
                   </td>
                   <td style={{ position: 'sticky', right: 0, zIndex: 1, background: STICKY_ACTION_BACKGROUND, padding: '13px 14px', boxShadow: '-8px 0 16px rgba(15,23,42,0.05)' }}>
@@ -860,7 +831,7 @@ function ProvidersTab() {
         </table>
         </div>
         )}
-        {filtered.length === 0 && <div style={{ textAlign: 'center', padding: 48, color: MUTED }}>Sin proveedores.</div>}
+        {filtered.length === 0 && <EmptyTableState message="Sin proveedores." />}
       </div>
 
       {modal && (
@@ -868,9 +839,7 @@ function ProvidersTab() {
           <div style={{ background: CANVAS, borderRadius: 20, width: '100%', maxWidth: 500, margin: '0 16px', boxShadow: '0 8px 40px rgba(0,0,0,0.18)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '22px 28px 18px', borderBottom: `1px solid ${HAIRLINE}` }}>
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: INK }}>{modal.mode === 'create' ? 'Nuevo Proveedor' : 'Editar Proveedor'}</h2>
-              <button onClick={() => setModal(null)} style={{ background: PARCHMENT, border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <X size={14} color={MUTED} />
-              </button>
+              <AppButton aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={() => setModal(null)} icon={<X size={14} color={MUTED} />} style={{ borderRadius: 9999 }} />
             </div>
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -911,10 +880,10 @@ function ProvidersTab() {
                 ))}
               </div>
               <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
-                <button onClick={() => setModal(null)} style={{ flex: 1, padding: '11px', background: PARCHMENT, color: MUTED, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={handleSave} disabled={!canSave} style={{ flex: 2, padding: '11px', background: canSave ? GREEN : HAIRLINE, color: canSave ? '#fff' : MUTED, border: 'none', borderRadius: 9999, fontSize: 13, fontWeight: 600, cursor: canSave ? 'pointer' : 'default' }}>
+                <AppButton onClick={() => setModal(null)} variant="secondary" size="sm" style={{ flex: 1 }}>Cancelar</AppButton>
+                <AppButton onClick={handleSave} disabled={!canSave} size="sm" style={{ flex: 2 }}>
                   {modal.mode === 'create' ? 'Crear Proveedor' : 'Guardar'}
-                </button>
+                </AppButton>
               </div>
             </div>
           </div>
@@ -927,8 +896,6 @@ function ProvidersTab() {
 // --- Main AdminDashboard ------------------------------------------------------
 
 type AdminTab = 'users' | 'audit' | 'articles' | 'providers';
-
-interface Props { extraAuditEntries?: AuditEntry[]; activeTab?: string; }
 
 interface Props {
   users: AppUser[];

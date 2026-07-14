@@ -1,12 +1,7 @@
 import type { CSSProperties } from 'react';
+import { color } from './theme';
 
-const INK = '#1d1d1f';
-const MUTED = '#667085';
-const HAIRLINE = '#eaecf0';
-const PARCHMENT = '#f8fafc';
-const SURFACE = '#fdfefe';
-const GREEN = '#1a5c38';
-const CANVAS = '#ffffff';
+const { ink: INK, muted: MUTED, hairline: HAIRLINE, parchment: PARCHMENT, surface: SURFACE, brand: GREEN, canvas: CANVAS } = color;
 
 export const pageShell: CSSProperties = {
   maxWidth: 1380,
@@ -61,9 +56,16 @@ export const pageActions: CSSProperties = {
 export const filterGroup: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  gap: 6,
-  flexWrap: 'wrap',
+  gap: 4,
+  flexWrap: 'nowrap',
   minWidth: 0,
+  maxWidth: '100%',
+  padding: 3,
+  background: CANVAS,
+  border: `1px solid ${HAIRLINE}`,
+  borderRadius: 12,
+  overflowX: 'auto',
+  overflowY: 'hidden',
 };
 
 export const searchInput: CSSProperties = {
@@ -278,14 +280,17 @@ export function getSegmentButtonStyle(active: boolean): CSSProperties {
 
 export function getFilterChipStyle(active: boolean, activeColor = GREEN): CSSProperties {
   return {
-    padding: '7px 12px',
+    minHeight: 34,
+    padding: '7px 11px',
     fontSize: 12,
-    fontWeight: active ? 600 : 500,
-    borderRadius: 9999,
+    fontWeight: active ? 700 : 500,
+    borderRadius: 9,
     color: active ? activeColor : MUTED,
-    background: active ? `${activeColor}10` : 'transparent',
-    border: active ? `1px solid ${activeColor}22` : '1px solid transparent',
+    background: active ? `${activeColor}12` : 'transparent',
+    border: 'none',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   };
 }
 

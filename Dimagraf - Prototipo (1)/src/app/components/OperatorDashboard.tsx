@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Search, Plus, ChevronRight, Filter, CheckCircle, X, Upload, FileText, AlertTriangle, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { fieldLabel, filterGroup, filtersSurface, formInput, formTextarea, getAutoFitGridStyle, getFilterChipStyle, getModalPrimaryButtonStyle, getModalSecondaryButtonStyle, getPrimaryButtonStyle, getResponsiveTableStyle, getSecondaryButtonStyle, getModalShellStyle, getSearchWrapStyle, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageActions, pageHeader, pageShell, searchInput, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
+import { Plus, ChevronRight, CheckCircle, X, Upload, FileText, AlertTriangle, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { fieldLabel, formInput, formTextarea, getAutoFitGridStyle, getModalPrimaryButtonStyle, getModalSecondaryButtonStyle, getResponsiveTableStyle, getModalShellStyle, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
 import { read, utils, writeFileXLSX } from 'xlsx';
 import { PROVEEDORES, getEstadoColor, type EstadoCarpeta, type Carpeta } from './mockData';
 import { NeonBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
+import { AppButton } from './AppButton';
+import { normalizeSearchTerm, SearchField } from './SearchField';
+import { FilterToolbar } from './FilterToolbar';
 
 const INK       = '#1d1d1f';
 const MUTED     = '#6e6e73';
@@ -21,6 +24,7 @@ const ESTADO_FILTERS: Array<{ value: EstadoCarpeta | 'Todos'; label: string }> =
   { value: 'En Aduana', label: 'En Aduana' },
   { value: 'Oficializado', label: 'Oficializado' },
   { value: 'Cerrada', label: 'Cerrada' },
+  { value: 'Con Incidencia', label: 'Con incidencia' },
 ];
 
 const INCOTERMS = ['FOB', 'CIF', 'EXW', 'FCA', 'DAP', 'DDP', 'CFR'];
@@ -139,7 +143,7 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
   const [currentPage, setCurrentPage] = useState(1);
   const [tableViewportHeight, setTableViewportHeight] = useState(FALLBACK_VIEWPORT_HEIGHT);
   const [tableShellWidth, setTableShellWidth] = useState(0);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [step, setStep] = useState<WizardStep>(1);
@@ -201,12 +205,6 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
   };
 
   useEffect(() => {
-    if (!isNarrowViewport) {
-      setShowMobileFilters(false);
-    }
-  }, [isNarrowViewport]);
-
-  useEffect(() => {
     const measureTableViewport = () => {
       const shellRect = tableShellRef.current?.getBoundingClientRect();
       const viewportHeight = window.innerHeight || FALLBACK_VIEWPORT_HEIGHT;
@@ -237,12 +235,19 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
     return counts;
   }, {});
 
+  const estadoFilterOptions = ESTADO_FILTERS.map(option => ({
+    ...option,
+    count: option.value === 'Todos' ? carpetasList.length : (estadoCounts[option.value] ?? 0),
+  }));
+
   const filtered = carpetasList.filter(c => {
     const prov = PROVEEDORES.find(p => p.id === c.proveedorId);
-    const matchSearch = !search ||
-      c.numero.toLowerCase().includes(search.toLowerCase()) ||
-      prov?.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      c.articulos.some(a => a.codigoSAP.includes(search) || a.descripcion.toLowerCase().includes(search.toLowerCase()));
+    const normalizedSearch = normalizeSearchTerm(search);
+    const matchSearch = !normalizedSearch || [
+      c.numero,
+      prov?.nombre,
+      ...c.articulos.flatMap(a => [a.codigoSAP, a.descripcion]),
+    ].some(value => normalizeSearchTerm(value).includes(normalizedSearch));
     const matchEstado = estadoFilter === 'Todos' || c.estado === estadoFilter;
     return matchSearch && matchEstado;
   });
@@ -328,62 +333,6 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
         return currency;
     }
   };
-
-  const filterButtons = ESTADO_FILTERS.map(({ value, label }) => {
-    const count = value === 'Todos' ? carpetasList.length : (estadoCounts[value] ?? 0);
-    const accentColor = GREEN;
-
-    return (
-      <button
-        key={value}
-        onClick={() => setEstadoFilter(value)}
-        style={{
-          ...getFilterChipStyle(estadoFilter === value, accentColor),
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: isNarrowViewport ? 8 : 6,
-          padding: isNarrowViewport ? '5px 10px 5px 6px' : '4px 9px 4px 5px',
-          background: estadoFilter === value ? accentColor : CANVAS,
-          border: `1px solid ${estadoFilter === value ? accentColor : `${accentColor}33`}`,
-          boxShadow: estadoFilter === value ? `0 6px 14px ${accentColor}26` : '0 1px 2px rgba(16,24,40,0.04)',
-          transform: estadoFilter === value ? 'translateY(-1px)' : 'none',
-        }}
-      >
-        <span
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: isNarrowViewport ? 22 : 20,
-            height: isNarrowViewport ? 22 : 20,
-            padding: isNarrowViewport ? '0 6px' : '0 5px',
-            borderRadius: 9999,
-            fontSize: isNarrowViewport ? 11 : 10,
-            fontWeight: 700,
-            color: estadoFilter === value ? accentColor : MUTED,
-            background: estadoFilter === value ? '#ffffff' : `${accentColor}10`,
-            border: `1px solid ${estadoFilter === value ? '#ffffff' : `${accentColor}28`}`,
-            lineHeight: 1,
-            fontVariantNumeric: 'tabular-nums',
-            flexShrink: 0,
-          }}
-        >
-          {count}
-        </span>
-        <span
-          style={{
-            fontSize: isNarrowViewport ? 12 : 11,
-            fontWeight: 700,
-            letterSpacing: '0.01em',
-            color: estadoFilter === value ? '#ffffff' : accentColor,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {label}
-        </span>
-      </button>
-    );
-  });
 
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -692,16 +641,16 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
           <p style={{ margin: '4px 0 0', fontSize: 15, color: MUTED, fontWeight: 400 }}>Control operativo de importaciones</p>
         </div>
         <div style={pageActions}>
-          <button style={getSecondaryButtonStyle()}>
+          <AppButton variant="secondary">
             Exportar
-          </button>
+          </AppButton>
           {!hideImportes && (
-            <button
+            <AppButton
               onClick={handleOpenWizard}
-              style={getPrimaryButtonStyle()}
+              icon={<Plus size={14} />}
             >
-              <Plus size={14} /> Nueva Carpeta
-            </button>
+              Nueva Carpeta
+            </AppButton>
           )}
         </div>
       </div>
@@ -709,51 +658,7 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
       {/* ── Table ────────────────────────────────────────────── */}
       <div ref={tableShellRef} style={tableShell}>
           <div style={{ padding: isNarrowViewport ? '10px 12px' : '12px 14px', borderBottom: `1px solid ${HAIRLINE}`, background: '#fcfcfd' }}>
-            <div style={{ ...filtersSurface, marginBottom: 0, padding: 0, gap: isNarrowViewport ? 10 : 12, alignItems: isNarrowViewport ? 'stretch' : 'center', background: 'transparent', border: 'none', boxShadow: 'none', borderRadius: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: isNarrowViewport ? '100%' : 'auto', minWidth: 0, flex: isNarrowViewport ? '1 1 100%' : '1 1 460px', flexWrap: 'nowrap' }}>
-                <div style={{ ...getSearchWrapStyle(isNarrowViewport ? undefined : 420), flex: isNarrowViewport ? '1 1 auto' : 1, minWidth: 0 }}>
-                  <Search size={15} style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: MUTED }} />
-                  <input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Buscar por N° Carpeta, Proveedor, Código SAP..."
-                    style={{ ...searchInput, padding: isNarrowViewport ? '10px 12px 10px 36px' : '9px 12px 9px 36px', borderRadius: isNarrowViewport ? 18 : 16 }}
-                  />
-                </div>
-                {isNarrowViewport && (
-                  <button
-                    type="button"
-                    onClick={() => setShowMobileFilters(open => !open)}
-                    aria-expanded={showMobileFilters}
-                    aria-label={showMobileFilters ? 'Ocultar filtros de estado' : 'Mostrar filtros de estado'}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      minWidth: 40,
-                      width: 40,
-                      height: 40,
-                      padding: 0,
-                      background: showMobileFilters ? GREEN : CANVAS,
-                      color: showMobileFilters ? '#ffffff' : GREEN,
-                      border: `1px solid ${GREEN}`,
-                      borderRadius: 9999,
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      boxShadow: showMobileFilters ? '0 6px 14px rgba(26,92,56,0.18)' : '0 1px 2px rgba(16,24,40,0.04)',
-                    }}
-                  >
-                    <Filter size={14} />
-                  </button>
-                )}
-              </div>
-              {(!isNarrowViewport || showMobileFilters) && (
-                <div style={{ ...filterGroup, width: isNarrowViewport ? '100%' : 'auto', flex: isNarrowViewport ? '1 1 100%' : '0 1 auto', gap: isNarrowViewport ? 6 : 5 }}>
-                  {!isNarrowViewport && <Filter size={13} style={{ color: MUTED }} />}
-                  {filterButtons}
-                </div>
-              )}
-            </div>
+            <FilterToolbar search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por Carpeta, Proveedor o Código SAP" searchAriaLabel="Buscar carpetas" options={estadoFilterOptions} value={estadoFilter} onValueChange={setEstadoFilter} expanded={showMobileFilters} onExpandedChange={setShowMobileFilters} getOptionCount={value => value === 'Todos' ? carpetasList.length : (estadoCounts[value] ?? 0)} />
           </div>
           <div style={{ ...tableScrollArea, maxHeight: useCompactTableLayout ? 'none' : availableScrollAreaHeight, overflowY: useCompactTableLayout ? 'visible' : 'auto' }}>
             {useCompactTableLayout ? (
@@ -761,6 +666,7 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
                 {paginatedRows.map((c, i) => {
                   const prov = PROVEEDORES.find(p => p.id === c.proveedorId);
                   const isCritical = c.estado === 'Con Incidencia' || c.subcarpetas.some(s => s.canalAduana === 'Rojo');
+                  const rowStatusColor = getEstadoColor(c.estado);
 
                   return (
                     <div
@@ -806,7 +712,7 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
                           )}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: hideImportes ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto', alignItems: 'center', gap: 8 }}>
-                          <div style={{ minWidth: 0, fontSize: 12, color: INK, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prov?.nombre || '—'}</div>
+                          <div style={{ minWidth: 0, fontSize: 12, color: INK, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prov?.nombre || '—'} <span style={{ color: rowStatusColor }}>· {c.estado === 'Activa' ? 'Pendiente de embarque' : c.estado}</span></div>
                           {!hideImportes && <div style={{ fontSize: 11, color: MUTED, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', textAlign: 'right' }}>{`Modif. ${c.lastUpdate.slice(5)}`}</div>}
                         </div>
                       </div>
@@ -862,6 +768,7 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
                   {paginatedRows.map((c, i) => {
                     const prov = PROVEEDORES.find(p => p.id === c.proveedorId);
                     const isCritical = c.estado === 'Con Incidencia' || c.subcarpetas.some(s => s.canalAduana === 'Rojo');
+                    const rowStatusColor = getEstadoColor(c.estado);
                     return (
                       <tr
                         key={c.id}
@@ -871,7 +778,8 @@ export function OperatorDashboard({ carpetasList, onSelectCarpeta, onCreateCarpe
                         onMouseLeave={e => (e.currentTarget.style.background = isCritical ? 'rgba(196,0,26,0.03)' : CANVAS)}
                       >
                         <td style={{ padding: '8px 14px' }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: INK, letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.numero}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}><div style={{ fontSize: 13, fontWeight: 700, color: INK, letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.numero}</div></div>
+                          <div style={{ marginTop: 2, fontSize: 10, color: rowStatusColor, whiteSpace: 'nowrap' }}>{c.estado === 'Activa' ? 'Pendiente de embarque' : c.estado}</div>
                         </td>
                         <td style={{ padding: '8px 14px' }}>
                           <div style={{ fontSize: 13, color: INK, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prov?.nombre || '—'}</div>

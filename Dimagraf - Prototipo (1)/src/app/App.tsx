@@ -12,6 +12,8 @@ import { DispatcherDashboard } from './components/DispatcherDashboard';
 import { NotificationPanel } from './components/NotificationPanel';
 import { LoginScreen } from './components/LoginScreen';
 import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
+import { AppLoaderSkeleton } from './components/LoadingState';
+import { ErrorStatePage } from './components/ErrorStatePage';
 import { AccountSettingsPage, type MailReportConfig } from './components/AccountSettingsPage';
 import { CARPETAS, INITIAL_NOTIFICATIONS, USERS, type Carpeta, type AppNotification, type AuditEntry, type AppUser } from './components/mockData';
 import type { Role } from './components/mockData';
@@ -52,6 +54,8 @@ const DEFAULT_MAIL_CONFIG: MailReportConfig = {
 
 export default function App() {
   const isRecoveryMode = new URLSearchParams(window.location.search).get('recovery') === '1';
+  const forcedErrorParam = new URLSearchParams(window.location.search).get('error');
+  const forcedErrorVariant = forcedErrorParam === '404' || forcedErrorParam === '500' ? forcedErrorParam : null;
   const [users, setUsers] = useState<AppUser[]>(USERS);
   const [session, setSession] = useState<SessionState>(null);
   const [loginError, setLoginError] = useState<string | undefined>();
@@ -65,6 +69,7 @@ export default function App() {
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [mailConfigByUser, setMailConfigByUser] = useState<Record<string, MailReportConfig>>({});
   const [lastContentView, setLastContentView] = useState<View>('carpetas');
+  const [isContentLoading, setIsContentLoading] = useState(false);
 
   const currentUser = useMemo(
     () => session?.kind === 'abm' ? users.find(user => user.id === session.userId) ?? null : null,
@@ -106,6 +111,17 @@ export default function App() {
   useEffect(() => {
     setNotifOpen(false);
   }, [role, view, selectedCarpetaId]);
+
+  useEffect(() => {
+    if (!session || isRecoveryMode || forcedErrorVariant) {
+      setIsContentLoading(false);
+      return;
+    }
+
+    setIsContentLoading(true);
+    const timer = window.setTimeout(() => setIsContentLoading(false), 320);
+    return () => window.clearTimeout(timer);
+  }, [session, role, view, selectedCarpetaId, isRecoveryMode, forcedErrorVariant]);
 
   const visibleNotifications = session?.kind === 'abm'
     ? notifications.filter(notification => !notification.role || notification.role === role)
@@ -314,9 +330,6 @@ export default function App() {
     setCarpetasList(prev => prev.map(carpeta => carpeta.id === updatedCarpeta.id ? updatedCarpeta : carpeta));
   };
 
-  const selectedCarpeta = selectedCarpetaId ? carpetasList.find(c => c.id === selectedCarpetaId) : null;
-  const breadcrumb = view === 'carpeta-detail' && selectedCarpeta ? selectedCarpeta.numero : undefined;
-
   const renderContent = () => {
     if (role === 'design-system') return <DesignSystemPage />;
     if (view === 'settings' && currentUser) {
@@ -335,13 +348,13 @@ export default function App() {
     }
     if (role === 'operator') {
       if (view === 'carpeta-detail' && selectedCarpetaId)
-        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} initialTab={selectedDetailTab} />;
+        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} initialTab={selectedDetailTab} role={role} />;
       if (view === 'arrivals') return <CommercialArrivals />;
       return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onCreateCarpeta={handleCreateCarpeta} />;
     }
     if (role === 'director') {
       if (view === 'carpeta-detail' && selectedCarpetaId)
-        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} readonly initialTab={selectedDetailTab} />;
+        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} readonly initialTab={selectedDetailTab} role={role} />;
       if (view === 'carpetas')
         return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onCreateCarpeta={handleCreateCarpeta} />;
       return (
@@ -355,7 +368,7 @@ export default function App() {
     }
     if (role === 'commercial') {
       if (view === 'carpeta-detail' && selectedCarpetaId)
-        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} readonly hideImportes initialTab={selectedDetailTab} />;
+        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} readonly hideImportes initialTab={selectedDetailTab} role={role} />;
       if (view === 'carpetas')
         return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onCreateCarpeta={handleCreateCarpeta} hideImportes />;
       return <CommercialArrivals />;
@@ -381,6 +394,44 @@ export default function App() {
     ? DESIGN_SYSTEM_ACCESS.label
     : `${currentUser?.nombre ?? ''} ${currentUser?.apellido ?? ''}`.trim() || currentUser?.username || 'Usuario';
 
+  const renderBody = () => {
+    if (forcedErrorVariant) {
+      return (
+        <ErrorStatePage
+          variant={forcedErrorVariant}
+          onRetry={() => window.location.reload()}
+          onGoHome={() => {
+            window.history.replaceState({}, '', window.location.pathname);
+            setView(INITIAL_VIEWS[role as Role] ?? 'carpetas');
+            setSelectedCarpetaId(null);
+            setSelectedDetailTab('general');
+          }}
+        />
+      );
+    }
+
+    if (isContentLoading) {
+      return <AppLoaderSkeleton />;
+    }
+
+    const content = renderContent();
+    if (!content) {
+      return (
+        <ErrorStatePage
+          variant="generic"
+          onRetry={() => window.location.reload()}
+          onGoHome={() => {
+            setView(INITIAL_VIEWS[role as Role] ?? 'carpetas');
+            setSelectedCarpetaId(null);
+            setSelectedDetailTab('general');
+          }}
+        />
+      );
+    }
+
+    return content;
+  };
+
   return (
     <>
       <style>{`
@@ -404,7 +455,6 @@ export default function App() {
         setRole={handleSetRole}
         view={view}
         setView={handleSetView}
-        breadcrumb={breadcrumb}
         unreadCount={unreadCount}
         onRequestCloseNotifications={() => setNotifOpen(false)}
         onBellClick={(anchorRect) => {
@@ -416,7 +466,7 @@ export default function App() {
         onOpenSettings={session.kind === 'abm' ? handleOpenSettings : undefined}
         onLogout={handleLogout}
       >
-        {renderContent()}
+        {renderBody()}
       </Layout>
 
       {notifOpen && (
