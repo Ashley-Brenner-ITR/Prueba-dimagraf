@@ -20,3 +20,7 @@ pnpm-debug.log*
 Thumbs.db
 
 .vscode/
+01_ESTADO_ACTUAL_UI.md
+02_ROLES_Y_FLUJOS.md
+03_MODULOS_Y_COBERTURA.md
+04_FALTANTES_Y_BACKLOG.md
