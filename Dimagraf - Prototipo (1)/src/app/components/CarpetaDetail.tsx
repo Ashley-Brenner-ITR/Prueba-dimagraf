@@ -6,7 +6,6 @@ import { NeonBadge, CanalBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { ShipmentCard } from './ShipmentCard';
 import { AppButton } from './AppButton';
@@ -114,9 +113,9 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
     <div style={pageShell}>
 
       {/* ── Back button ──────────────────────────────────────── */}
-      <button onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 0', background: 'none', border: 'none', color: MUTED, fontSize: 14, cursor: 'pointer', marginBottom: 20, fontWeight: 400 }}>
-        <ArrowLeft size={14} /> Volver al Dashboard
-      </button>
+      <AppButton variant="tertiary" size="sm" onClick={onBack} icon={<ArrowLeft size={14} />} style={{ padding: '5px 0', marginBottom: 20, fontWeight: 400 }}>
+        Volver al Dashboard
+      </AppButton>
 
       {/* ── Light page header ─────────────────────────────── */}
       <div style={{ ...pageHeader, alignItems: 'flex-start', marginBottom: 12 }}>
@@ -714,9 +713,9 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
               </div>
             </div>
             {!isFull && availableArticulos.length > 0 && (
-              <Button className="rounded-full" onClick={() => setShowModal(true)}>
-                <Plus aria-hidden="true" /> Crear embarque
-              </Button>
+              <AppButton onClick={() => setShowModal(true)} icon={<Plus aria-hidden="true" />}>
+                Crear embarque
+              </AppButton>
             )}
           </div>
         )}
@@ -1008,7 +1007,7 @@ function DocumentosTab({ carpeta, subs, readonly }: any) {
                         <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>{doc.nombre}</div>
                         <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{doc.subcarpeta}</div>
                       </div>
-                      <button style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: 13, flexShrink: 0 }}>Ver</button>
+                      <AppButton size="xs" variant="tertiary" style={{ flexShrink: 0 }}>Ver documento</AppButton>
                     </div>
                     <div style={{ marginTop: 10 }}>
                       <span style={{ fontSize: 12, color, background: `${color}14`, border: `1px solid ${color}33`, borderRadius: 9999, padding: '3px 8px' }}>{doc.tipo}</span>
@@ -1049,9 +1048,7 @@ function DocumentosTab({ carpeta, subs, readonly }: any) {
                       <td style={{ padding: '12px 16px', fontSize: 13, color: MUTED }}>{doc.tamano}</td>
                       <td style={{ padding: '12px 16px', fontSize: 13, color: MUTED }}>{doc.fecha}</td>
                       <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', gap: 10 }}>
-                          <button style={{ background: 'none', border: 'none', color: MUTED, cursor: 'pointer', fontSize: 13 }}>Ver</button>
-                        </div>
+                        <AppButton size="xs" variant="tertiary">Ver documento</AppButton>
                       </td>
                     </tr>
                   );
@@ -1119,12 +1116,12 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
           <div>
             <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>Canal Aduanero</div>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button style={{ flex: 1, padding: '12px', borderRadius: 11, border: `2px solid ${sub.canalAduana === 'Verde' ? '#1a7a4a' : HAIRLINE}`, background: sub.canalAduana === 'Verde' ? 'rgba(26,122,74,0.08)' : CANVAS, color: sub.canalAduana === 'Verde' ? '#1a7a4a' : MUTED, fontSize: 15, fontWeight: sub.canalAduana === 'Verde' ? 600 : 400, cursor: 'pointer' }}>
+              <AppButton variant={sub.canalAduana === 'Verde' ? 'success-soft' : 'secondary'} style={{ flex: 1, minHeight: 44 }}>
                 Canal Verde
-              </button>
-              <button style={{ flex: 1, padding: '12px', borderRadius: 11, border: `2px solid ${sub.canalAduana === 'Rojo' ? '#c4001a' : HAIRLINE}`, background: sub.canalAduana === 'Rojo' ? 'rgba(196,0,26,0.08)' : CANVAS, color: sub.canalAduana === 'Rojo' ? '#c4001a' : MUTED, fontSize: 15, fontWeight: sub.canalAduana === 'Rojo' ? 600 : 400, cursor: 'pointer' }}>
+              </AppButton>
+              <AppButton variant={sub.canalAduana === 'Rojo' ? 'danger-soft' : 'secondary'} style={{ flex: 1, minHeight: 44 }}>
                 Canal Rojo
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -1151,7 +1148,7 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
                 <span style={{ fontSize: 15, color: INK }}>{d.nombre}</span>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 17, fontWeight: 600, color: d.saldoFavor > 0 ? '#1a7a4a' : MUTED }}>$ {d.saldoFavor.toLocaleString()}</div>
-                  {d.saldoFavor > 0 && <button style={{ fontSize: 13, color: MUTED, background: 'none', border: 'none', cursor: 'pointer', marginTop: 2 }}>Aplicar saldo</button>}
+                  {d.saldoFavor > 0 && <AppButton size="xs" variant="tertiary" style={{ marginTop: 2 }}>Aplicar saldo</AppButton>}
                 </div>
               </div>
             ))}
@@ -1170,9 +1167,9 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
             : <Field label="Tx.55 — En Tránsito" value={sub.pedidoSAP55 || '—'} color={sub.pedidoSAP55 ? INK : MUTED} />
           }
           <Field label="Tx.18 — Ingreso Mercadería" value={sub.ingresoSAP18 || '—'} color={sub.ingresoSAP18 ? '#1a7a4a' : MUTED} />
-          <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 22px', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, color: INK, fontSize: 14, cursor: 'pointer', marginTop: 4 }}>
-            <Download size={14} /> Exportar estructura para SAP (.CSV)
-          </button>
+          <AppButton variant="secondary" icon={<Download size={14} />} style={{ marginTop: 4 }}>
+            Exportar estructura para SAP (.CSV)
+          </AppButton>
         </div>
       </Card>
       </div>

@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { AlertTriangle, TrendingUp, DollarSign, Ship, Eye, Download } from 'lucide-react';
-import { filterGroup, filtersSurface, getAutoFitGridStyle, getPrimaryButtonStyle, getResponsiveTableStyle, getSearchWrapStyle, getSegmentButtonStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell, segmentedControl } from './chromeStyles';
+import { filtersSurface, getAutoFitGridStyle, getResponsiveTableStyle, getSearchWrapStyle, getSegmentButtonStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell, segmentedControl } from './chromeStyles';
 import { CARPETAS, PROVEEDORES, getEstadoColor, type Carpeta } from './mockData';
 import { MetricCardGrid } from './MetricCardGrid';
 import { NeonBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
 import { SearchField, normalizeSearchTerm } from './SearchField';
+import { AppButton } from './AppButton';
 import { color as themeColor } from './theme';
 
 const INK = themeColor.ink;
 const MUTED = themeColor.muted;
-const PARCHMENT = themeColor.parchment;
 const HAIRLINE = themeColor.hairline;
-const GREEN = themeColor.brand;
 const VIOLET   = '#5b21b6';
 const CANVAS = themeColor.canvas;
 
@@ -39,7 +38,6 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
   const criticas   = list.filter(c => c.estado === 'Con Incidencia' || c.subcarpetas.some(s => s.canalAduana === 'Rojo'));
   const totalMonto = activas.reduce((s, c) => s + c.montoTotal, 0);
   const contenedores = list.flatMap(c => c.subcarpetas).filter(s => s.estado !== 'Cerrada').reduce((s, sub) => s + sub.contenedores, 0);
-  import { AppButton } from './AppButton';
   const costeo = list.filter(c => c.coeficienteReal !== null);
   const desvios = costeo.filter(c => Math.abs((c.coeficienteReal! - c.coeficienteEst) / c.coeficienteEst) > 0.05);
 
@@ -56,8 +54,8 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
           <div style={segmentedControl}>
             <button onClick={() => onSectionChange('kpi')} style={getSegmentButtonStyle(section === 'kpi')}>KPIs</button>
             <button onClick={() => onSectionChange('audit')} style={getSegmentButtonStyle(section === 'audit')}>Auditoría Costos</button>
-                <AppButton size="sm" icon={<Download size={13} />}>Exportar</AppButton>
-          </button>
+          </div>
+          <AppButton size="sm" icon={<Download size={13} />}>Exportar</AppButton>
         </div>
       </div>
 
@@ -90,10 +88,9 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
                       </div>
                       <span style={{ fontSize: 13, color: MUTED, flex: 1, minWidth: isMobile ? '100%' : 120 }}>{c.ultimoHito}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>
-                              <AppButton size="xs" variant="secondary" icon={<Eye size={12} />} onClick={() => onViewCarpeta(c.id)} style={{ flexShrink: 0 }}>
-                                Ver
-                              </AppButton>
-                        </button>
+                        <AppButton size="xs" variant="secondary" icon={<Eye size={12} />} onClick={() => onViewCarpeta(c.id)} style={{ flexShrink: 0 }}>
+                          Ver carpeta
+                        </AppButton>
                       </div>
                     </div>
                   );
@@ -193,8 +190,8 @@ function AuditPanel({ onViewCarpeta, list }: { onViewCarpeta: (id: string) => vo
                     <td style={{ padding: '14px 16px', fontSize: 13, color: MUTED, maxWidth: 220 }}>
                       <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.observaciones || '(sin observaciones)'}</div>
                     </td>
-                            <AppButton type="button" size="xs" variant="tertiary" icon={<Eye size={14} />} onClick={() => onViewCarpeta(c.id)} aria-label={`Ver ${c.numero}`} />
-                      </button>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      <AppButton type="button" size="xs" variant="tertiary" icon={<Eye size={14} />} onClick={() => onViewCarpeta(c.id)} aria-label={`Ver carpeta ${c.numero}`} />
                     </td>
                   </tr>
                 );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download, Package, Clock3, Users } from 'lucide-react';
-import { getPrimaryButtonStyle, getResponsiveTableStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
+import { getResponsiveTableStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell } from './chromeStyles';
 import { MetricCardGrid } from './MetricCardGrid';
 import { CARPETAS, PROVEEDORES } from './mockData';
 import { useIsMobile } from './ui/use-mobile';
@@ -8,6 +8,7 @@ import { TransportModeIcon } from './TransportModeIcon';
 import { normalizeSearchTerm } from './SearchField';
 import { color } from './theme';
 import { FilterToolbar } from './FilterToolbar';
+import { AppButton } from './AppButton';
 
 const INK = color.ink;
 const MUTED = color.muted;
@@ -65,9 +66,9 @@ export function CommercialArrivals() {
           <p style={{ margin: '4px 0 0', fontSize: 15, color: MUTED, fontWeight: 400 }}>Cargas entrantes · Solo lectura · Sin datos de costos</p>
         </div>
         <div style={pageActions}>
-          <button style={{ ...getPrimaryButtonStyle(), flexShrink: 0 }}>
-            <Download size={14} /> Exportar (.xlsx)
-          </button>
+          <AppButton style={{ flexShrink: 0 }} icon={<Download size={14} />}>
+            Exportar (.xlsx)
+          </AppButton>
         </div>
       </div>
 
