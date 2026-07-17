@@ -9,6 +9,7 @@ import { normalizeSearchTerm } from './SearchField';
 import { color } from './theme';
 import { FilterToolbar } from './FilterToolbar';
 import { AppButton } from './AppButton';
+import { WelcomeBanner } from './WelcomeBanner';
 
 const INK = color.ink;
 const MUTED = color.muted;
@@ -55,15 +56,11 @@ export function TreasuryCashFlow() {
     <div style={pageShell}>
 
       {/* ── Page header ───────────────────────────────────────── */}
-      <div style={{ ...pageHeader, alignItems: 'flex-start', marginBottom: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, color: INK }}>Flujo de Caja</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 15, color: MUTED, fontWeight: 400 }}>Proyección de importaciones · Tesorería</p>
-        </div>
-        <div style={pageActions}>
-          <AppButton size="sm" icon={<Download size={13} />}>Exportar</AppButton>
-        </div>
-      </div>
+      <WelcomeBanner
+        title="Flujo de caja"
+        subtitle="Proyección de pagos de importaciones"
+        actions={<AppButton size="sm" icon={<Download size={13} />}>Exportar</AppButton>}
+      />
 
       {/* ── KPI strip ────────────────────────────────────────── */}
       <MetricCardGrid

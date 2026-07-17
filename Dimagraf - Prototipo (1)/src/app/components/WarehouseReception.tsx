@@ -30,7 +30,7 @@ function buildReceptions(): Reception[] {
   for (const carpeta of CARPETAS) {
     const prov = PROVEEDORES.find(p => p.id === carpeta.proveedorId);
     for (const sub of carpeta.subcarpetas) {
-      if (sub.estado === 'Cerrada' || sub.estado === 'En Tránsito') continue;
+      if (sub.estado === 'En Stock' || sub.estado === 'En Tránsito') continue;
       if (sub.canalAduana === 'Pendiente') continue;
       recs.push({ sub, carpetaNumero: carpeta.numero, proveedorNombre: prov?.nombre || '—', articulos: carpeta.articulos, articulosEmbarque: sub.articulosEmbarque });
     }

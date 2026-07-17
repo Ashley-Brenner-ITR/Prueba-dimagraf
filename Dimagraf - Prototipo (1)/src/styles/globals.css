@@ -1,5 +1,6 @@
 html, body, #root {
-	min-height: 100%;
+	height: 100%;
+	overflow: hidden;
 }
 
 #root {
@@ -42,4 +43,24 @@ select {
 
 ::-webkit-scrollbar-track {
 	background: #ffffff;
+}
+
+@keyframes slideInLeft {
+	from { transform: translateX(-100%); }
+	to { transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+	from { transform: translateX(100%); }
+	to { transform: translateX(0); }
+}
+
+@keyframes slideUp {
+	from { transform: translateY(100%); }
+	to { transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
 }

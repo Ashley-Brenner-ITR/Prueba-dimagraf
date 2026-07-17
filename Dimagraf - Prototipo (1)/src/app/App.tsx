@@ -15,10 +15,12 @@ import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
 import { AppLoaderSkeleton } from './components/LoadingState';
 import { ErrorStatePage } from './components/ErrorStatePage';
 import { AccountSettingsPage, type MailReportConfig } from './components/AccountSettingsPage';
+import { VencimientosPage } from './components/VencimientosPage';
+import { SubcarpetaDetail } from './components/SubcarpetaDetail';
 import { CARPETAS, INITIAL_NOTIFICATIONS, USERS, type Carpeta, type AppNotification, type AuditEntry, type AppUser } from './components/mockData';
 import type { Role } from './components/mockData';
 
-type View = 'carpetas' | 'carpeta-detail' | 'arrivals' | 'cashflow' | 'reception' | 'audit' | 'dashboard'
+type View = 'carpetas' | 'carpeta-detail' | 'subcarpeta-detail' | 'arrivals' | 'cashflow' | 'reception' | 'audit' | 'dashboard' | 'vencimientos'
           | 'admin-users' | 'admin-audit' | 'admin-articles' | 'admin-providers' | 'admin-design-system' | 'settings';
 type DetailTabTarget = 'general' | 'articulos';
 
@@ -61,6 +63,7 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | undefined>();
   const [view, setView] = useState<View>('carpetas');
   const [selectedCarpetaId, setSelectedCarpetaId] = useState<string | null>(null);
+  const [selectedSubcarpetaId, setSelectedSubcarpetaId] = useState<string | null>(null);
   const [selectedDetailTab, setSelectedDetailTab] = useState<DetailTabTarget>('general');
   const [carpetasList, setCarpetasList] = useState<Carpeta[]>([...CARPETAS]);
   const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
@@ -330,12 +333,18 @@ export default function App() {
     setCarpetasList(prev => prev.map(carpeta => carpeta.id === updatedCarpeta.id ? updatedCarpeta : carpeta));
   };
 
+  const handleSelectSubcarpeta = (carpetaId: string, subcarpetaId: string) => {
+    setSelectedCarpetaId(carpetaId);
+    setSelectedSubcarpetaId(subcarpetaId);
+    setView('subcarpeta-detail');
+  };
+
   const renderContent = () => {
     if (role === 'design-system') return <DesignSystemPage />;
     if (view === 'settings' && currentUser) {
       return (
         <AccountSettingsPage
-          activeRole={role}
+          activeRole={role as any}
           currentUser={currentUser}
           mailConfig={currentMailConfig}
           onChangeMailConfig={(next) => {
@@ -343,20 +352,51 @@ export default function App() {
           }}
           onSave={handleSaveSettings}
           onBack={handleCloseSettings}
+          availableRoles={currentUser.roles}
+          onChangeRole={(newRole) => {
+            if (session?.kind === 'abm') {
+              setSession({ ...session, activeRole: newRole });
+              setView(view === 'settings' ? 'settings' : 'carpetas');
+            }
+          }}
+          onLogout={handleLogout}
         />
       );
     }
+    if (view === 'subcarpeta-detail' && selectedCarpetaId && selectedSubcarpetaId) {
+      const carpeta = carpetasList.find(c => c.id === selectedCarpetaId);
+      const sub = carpeta?.subcarpetas.find(s => s.id === selectedSubcarpetaId);
+      if (carpeta && sub) {
+        return (
+          <SubcarpetaDetail
+            subcarpeta={sub}
+            carpeta={carpeta}
+            readonly={role !== 'operator'}
+            hideImportes={role === 'commercial'}
+            onAddDocumento={(doc: any) => handleUpdateCarpeta({ ...carpeta, subcarpetas: carpeta.subcarpetas.map(item => item.id === sub.id ? ({ ...item, documentos: [...item.documentos, doc] }) : item) })}
+            onBack={() => { setView('carpeta-detail'); setSelectedSubcarpetaId(null); }}
+          />
+        );
+      }
+    }
     if (role === 'operator') {
+      if (view === 'subcarpeta-detail' && selectedCarpetaId && selectedSubcarpetaId) {
+        const carpeta = carpetasList.find(c => c.id === selectedCarpetaId);
+        const sub = carpeta?.subcarpetas.find(s => s.id === selectedSubcarpetaId);
+        if (carpeta && sub) return <SubcarpetaDetail subcarpeta={sub} carpeta={carpeta} onAddDocumento={(doc: any) => handleUpdateCarpeta({ ...carpeta, subcarpetas: carpeta.subcarpetas.map(item => item.id === sub.id ? ({ ...item, documentos: [...item.documentos, doc] }) : item) })} onBack={() => { setView('carpeta-detail'); setSelectedSubcarpetaId(null); }} />;
+      }
       if (view === 'carpeta-detail' && selectedCarpetaId)
-        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} initialTab={selectedDetailTab} role={role} />;
+        return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} initialTab={selectedDetailTab} role={role} onSelectSubcarpeta={(subId: string) => { setSelectedSubcarpetaId(subId); setView('subcarpeta-detail' as View); }} />;
       if (view === 'arrivals') return <CommercialArrivals />;
-      return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onCreateCarpeta={handleCreateCarpeta} />;
+      if (view === 'vencimientos') return <VencimientosPage canManagePayments={false} />;
+      return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onSelectSubcarpeta={handleSelectSubcarpeta} onCreateCarpeta={handleCreateCarpeta} />;
     }
     if (role === 'director') {
       if (view === 'carpeta-detail' && selectedCarpetaId)
         return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} readonly initialTab={selectedDetailTab} role={role} />;
       if (view === 'carpetas')
-        return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onCreateCarpeta={handleCreateCarpeta} />;
+        return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onSelectSubcarpeta={handleSelectSubcarpeta} onCreateCarpeta={handleCreateCarpeta} />;
+      if (view === 'vencimientos') return <VencimientosPage canManagePayments={false} />;
       return (
         <DirectorDashboard
           onViewCarpeta={handleSelectCarpeta}
@@ -370,10 +410,13 @@ export default function App() {
       if (view === 'carpeta-detail' && selectedCarpetaId)
         return <CarpetaDetail carpetaId={selectedCarpetaId} carpetasList={carpetasList} onBack={handleBack} onUpdateCarpeta={handleUpdateCarpeta} readonly hideImportes initialTab={selectedDetailTab} role={role} />;
       if (view === 'carpetas')
-        return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onCreateCarpeta={handleCreateCarpeta} hideImportes />;
+        return <OperatorDashboard carpetasList={carpetasList} onSelectCarpeta={handleSelectCarpeta} onSelectSubcarpeta={handleSelectSubcarpeta} onCreateCarpeta={handleCreateCarpeta} hideImportes />;
       return <CommercialArrivals />;
     }
-    if (role === 'treasury')    return <TreasuryCashFlow />;
+    if (role === 'treasury') {
+      if (view === 'vencimientos') return <VencimientosPage canManagePayments={true} />;
+      return <TreasuryCashFlow />;
+    }
     if (role === 'warehouse')   return <WarehouseReception />;
     if (role === 'dispatcher')  return <DispatcherDashboard carpetasList={carpetasList} />;
     if (role === 'admin') {

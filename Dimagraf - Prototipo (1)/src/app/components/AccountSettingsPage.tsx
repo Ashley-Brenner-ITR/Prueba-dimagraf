@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ArrowLeft, Mail, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Mail, ShieldCheck, LogOut, UserCircle } from 'lucide-react';
 import type { AppUser, Role } from './mockData';
 import { pageShell } from './chromeStyles';
 import { useIsMobile } from './ui/use-mobile';
 import { AppButton } from './AppButton';
 import { color } from './theme';
+import { WelcomeBanner } from './WelcomeBanner';
 
 const { ink: INK, muted: MUTED, hairline: HAIRLINE, parchment: PARCHMENT, surface: CANVAS, brand: GREEN } = color;
 
@@ -26,6 +27,9 @@ interface Props {
   onChangeMailConfig: (next: MailReportConfig) => void;
   onSave: (updates: { password?: string; mailConfig: MailReportConfig }) => void;
   onBack: () => void;
+  availableRoles?: Role[];
+  onChangeRole?: (role: Role) => void;
+  onLogout?: () => void;
 }
 
 const REPORT_OPTIONS: Array<{ key: MailReportKey; label: string; description: string }> = [
@@ -51,7 +55,17 @@ const REPORTS_BY_ROLE: Record<Role, MailReportKey[]> = {
   admin: ['arrivals', 'vencimientos', 'cashflow', 'auditoria'],
 };
 
-export function AccountSettingsPage({ activeRole, currentUser, mailConfig, onChangeMailConfig, onSave, onBack }: Props) {
+const ROLE_LABELS: Record<Role, string> = {
+  operator: 'Importaciones',
+  director: 'Dirección',
+  commercial: 'Área Comercial',
+  treasury: 'Tesorería',
+  warehouse: 'Depósito',
+  dispatcher: 'Despachante',
+  admin: 'Administración',
+};
+
+export function AccountSettingsPage({ activeRole, currentUser, mailConfig, onChangeMailConfig, onSave, onBack, availableRoles = [], onChangeRole, onLogout }: Props) {
   const isMobile = useIsMobile();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -78,13 +92,55 @@ export function AccountSettingsPage({ activeRole, currentUser, mailConfig, onCha
         >
           <ArrowLeft size={14} /> Volver
         </button>
-        <div>
-          <h1 style={{ margin: 0, color: INK }}>Configuración de cuenta</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 15, color: MUTED, fontWeight: 400 }}>{currentUser.email}</p>
-        </div>
       </div>
 
+      <WelcomeBanner
+        title="Configuración de cuenta"
+        subtitle={currentUser.email}
+      />
+
       <div style={{ display: 'grid', gap: 14, width: '100%' }}>
+        {/* Profile & Roles section */}
+        <section style={{ display: 'grid', gap: 12, padding: isMobile ? 14 : 18, borderRadius: 16, border: `1px solid ${HAIRLINE}`, background: '#fcfcfb' }}>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.04em' }}>
+              <UserCircle size={12} /> PERFIL Y ROLES
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+            <div style={{ padding: '12px 14px', background: PARCHMENT, borderRadius: 12, border: `1px solid ${HAIRLINE}` }}>
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Nombre</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: INK }}>{currentUser.nombre}</div>
+            </div>
+            <div style={{ padding: '12px 14px', background: PARCHMENT, borderRadius: 12, border: `1px solid ${HAIRLINE}` }}>
+              <div style={{ fontSize: 11, color: MUTED, marginBottom: 4 }}>Rol activo</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: GREEN }}>{ROLE_LABELS[activeRole] || activeRole}</div>
+            </div>
+          </div>
+          {availableRoles.length > 1 && onChangeRole && (
+            <div>
+              <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>Cambiar rol:</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {availableRoles.map(role => (
+                  <button
+                    key={role}
+                    onClick={() => onChangeRole(role)}
+                    style={{
+                      padding: '8px 14px', borderRadius: 9999,
+                      border: role === activeRole ? `2px solid ${GREEN}` : `1px solid ${HAIRLINE}`,
+                      background: role === activeRole ? 'rgba(26,92,56,0.06)' : CANVAS,
+                      color: role === activeRole ? GREEN : INK,
+                      fontSize: 12, fontWeight: role === activeRole ? 700 : 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {ROLE_LABELS[role] || role}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
         <section style={{ display: 'grid', gap: 12, padding: isMobile ? 14 : 18, borderRadius: 16, border: `1px solid ${HAIRLINE}`, background: '#fcfcfb' }}>
           <div style={{ display: 'grid', gap: 4 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.04em' }}>
@@ -235,6 +291,26 @@ export function AccountSettingsPage({ activeRole, currentUser, mailConfig, onCha
             Guardar configuración
           </AppButton>
         </div>
+
+        {/* Logout */}
+        {onLogout && (
+          <section style={{ padding: isMobile ? 14 : 18, borderRadius: 16, border: '1px solid rgba(180,35,24,0.15)', background: 'rgba(180,35,24,0.03)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#b42318' }}>Cerrar sesión</div>
+                <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>Se cerrará tu sesión activa en este dispositivo.</div>
+              </div>
+              <AppButton
+                onClick={onLogout}
+                variant="secondary"
+                icon={<LogOut size={14} />}
+                style={{ borderColor: 'rgba(180,35,24,0.3)', color: '#b42318', background: 'rgba(180,35,24,0.06)' }}
+              >
+                Cerrar sesión
+              </AppButton>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );
