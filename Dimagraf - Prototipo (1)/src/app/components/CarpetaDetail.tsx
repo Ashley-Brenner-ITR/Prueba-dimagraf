@@ -1,27 +1,31 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, FileText, DollarSign, Upload, Eye, Download, ChevronRight, ChevronDown, Plus, CheckCircle, Landmark, AlertTriangle, X, Pencil, Trash2, Info, Ship } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, FileText, DollarSign, Upload, Eye, Download, ChevronRight, ChevronDown, Plus, CheckCircle, Landmark, AlertTriangle, X, Pencil, Trash2, Info, Ship, CreditCard } from 'lucide-react';
 import { getAutoFitGridStyle, getResponsiveTableStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea } from './chromeStyles';
-import { CARPETAS, DESPACHANTES, getProveedor, getDespachante, type Subcarpeta, type Carpeta } from './mockData';
+import { CARPETAS, DESPACHANTES, getProveedor, getDespachante, type Documento, type Subcarpeta, type Carpeta } from './mockData';
 import { NeonBadge, CanalBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { ShipmentCard } from './ShipmentCard';
 import { AppButton } from './AppButton';
 import { AppInput, FormField } from './FormField';
 import { normalizeSearchTerm } from './SearchField';
 import { InfoField as Field } from './InfoField';
 import { SectionCard as Card } from './SectionCard';
 import { FilterToolbar } from './FilterToolbar';
+import { WelcomeBanner } from './WelcomeBanner';
+import { radius } from './theme';
 
 const INK      = '#1d1d1f';
 const MUTED    = '#6e6e73';
 const PARCHMENT= '#f8fafc';
 const HAIRLINE = '#d2d2d7';
 const GREEN    = '#1a5c38';
+const GREEN_HAIRLINE = 'rgba(26,92,56,0.26)';
+const GREEN_HAIRLINE_SOFT = 'rgba(26,92,56,0.16)';
 const VIOLET   = '#5b21b6';
 const CANVAS   = '#ffffff';
+const DESPACHO_TIPO_OPTIONS = ['Despacho Directo', 'ZFI', 'ZFE'] as const;
 
 const CURRENCY_SYMBOLS: Record<string, string> = { USD: 'US$', EUR: '€', ARS: '$' };
 function formatMoney(value: number, currency: string) {
@@ -29,11 +33,32 @@ function formatMoney(value: number, currency: string) {
   return `${symbol} ${value.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
 }
 
-type Tab = 'general' | 'articulos' | 'produccion' | 'subcarpetas' | 'documentos' | 'aduana' | 'costeo';
+type Tab = 'general' | 'articulos' | 'produccion' | 'subcarpetas' | 'documentos' | 'aduana' | 'costeo' | 'pagos';
 type CarpetaDetailRole = 'operator' | 'director' | 'commercial' | 'treasury' | 'warehouse' | 'dispatcher' | 'admin';
+type RolePermissions = {
+  canEditOriginalOc: boolean;
+  canEditProduccion: boolean;
+  canEditAduana: boolean;
+  canEditCosteo: boolean;
+  canEditPagos: boolean;
+  canViewProduccion: boolean;
+  canViewCosteo: boolean;
+  canViewPagos: boolean;
+  canViewImportes: boolean;
+};
 
 const SUB_LETTERS = ['A', 'B', 'C'] as const;
 type SubLetter = typeof SUB_LETTERS[number];
+
+const ROLE_PERMISSIONS: Record<CarpetaDetailRole, RolePermissions> = {
+  operator:   { canEditOriginalOc: true,  canEditProduccion: true,  canEditAduana: true,  canEditCosteo: true,  canEditPagos: false, canViewProduccion: true,  canViewCosteo: true,  canViewPagos: true,  canViewImportes: true },
+  director:   { canEditOriginalOc: false, canEditProduccion: false, canEditAduana: false, canEditCosteo: false, canEditPagos: false, canViewProduccion: true,  canViewCosteo: true,  canViewPagos: true,  canViewImportes: true },
+  commercial: { canEditOriginalOc: false, canEditProduccion: false, canEditAduana: false, canEditCosteo: false, canEditPagos: false, canViewProduccion: true,  canViewCosteo: false, canViewPagos: false, canViewImportes: false },
+  treasury:   { canEditOriginalOc: false, canEditProduccion: false, canEditAduana: false, canEditCosteo: false, canEditPagos: true,  canViewProduccion: true,  canViewCosteo: true,  canViewPagos: true,  canViewImportes: true },
+  warehouse:  { canEditOriginalOc: false, canEditProduccion: false, canEditAduana: false, canEditCosteo: false, canEditPagos: false, canViewProduccion: true,  canViewCosteo: false, canViewPagos: false, canViewImportes: false },
+  dispatcher: { canEditOriginalOc: false, canEditProduccion: false, canEditAduana: true,  canEditCosteo: false, canEditPagos: false, canViewProduccion: false, canViewCosteo: false, canViewPagos: false, canViewImportes: false },
+  admin:      { canEditOriginalOc: false, canEditProduccion: false, canEditAduana: false, canEditCosteo: false, canEditPagos: false, canViewProduccion: true,  canViewCosteo: true,  canViewPagos: true,  canViewImportes: true },
+};
 
 function assignedFromSubcarpetas(articuloId: string, subcarpetas: Subcarpeta[]) {
   return subcarpetas.reduce((total, subcarpeta) => total + subcarpeta.articulosEmbarque.reduce((subTotal, articulo) => articulo.articuloId === articuloId ? subTotal + articulo.cantidad : subTotal, 0), 0);
@@ -51,8 +76,8 @@ function normalizeCarpetaState(carpeta: Carpeta): Carpeta {
   };
 }
 
-interface Props { carpetaId: string; onBack: () => void; readonly?: boolean; carpetasList?: Carpeta[]; hideImportes?: boolean; initialTab?: Tab; onUpdateCarpeta?: (carpeta: Carpeta) => void; role?: CarpetaDetailRole; }
-export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasList, hideImportes = false, initialTab = 'general', onUpdateCarpeta, role = 'operator' }: Props) {
+interface Props { carpetaId: string; onBack: () => void; readonly?: boolean; carpetasList?: Carpeta[]; hideImportes?: boolean; initialTab?: Tab; onUpdateCarpeta?: (carpeta: Carpeta) => void; role?: CarpetaDetailRole; onSelectSubcarpeta?: (subId: string) => void; }
+export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasList, hideImportes = false, initialTab = 'general', onUpdateCarpeta, role = 'operator', onSelectSubcarpeta }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [activeSub, setActiveSub] = useState<string | null>(null);
   const [draftCarpeta, setDraftCarpeta] = useState<Carpeta | null>(null);
@@ -83,15 +108,20 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
   const subs = carpeta.subcarpetas;
   const proveedor = getProveedor(carpeta.proveedorId);
   const hasShipments = subs.length > 0;
-  const isClosed = carpeta.estado === 'Cerrada';
-  const canEditByRole = !readonly && role === 'operator';
-  const canEditOriginalOc = canEditByRole && !hasShipments && !isClosed;
+  const isClosed = hasShipments && subs.every(sub => sub.estado === 'En Stock');
+  const permissions = ROLE_PERMISSIONS[role];
+  const canEditOriginalOc = !readonly && permissions.canEditOriginalOc && !hasShipments && !isClosed;
+  const canEditProduccion = !readonly && permissions.canEditProduccion;
+  const canEditAduana = !readonly && permissions.canEditAduana;
+  const canEditCosteo = !readonly && permissions.canEditCosteo;
+  const canEditPagos = !readonly && permissions.canEditPagos;
+  const effectiveHideImportes = hideImportes || !permissions.canViewImportes;
   const ocLockReason = readonly
     ? 'Perfil en solo lectura.'
-    : role !== 'operator'
+    : !permissions.canEditOriginalOc
       ? 'Solo Importaciones puede editar la OC original.'
       : isClosed
-        ? 'La carpeta está cerrada.'
+        ? 'La carpeta ya fue recibida en depósito.'
         : hasShipments
           ? 'La OC original se bloquea al crear el primer embarque.'
           : null;
@@ -99,49 +129,47 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
   const usedLetters = subs.map(s => s.numero.split('-').pop() as SubLetter);
   const nextLetter = SUB_LETTERS.find(l => !usedLetters.includes(l)) ?? null;
   const allTabs: { id: Tab; label: string }[] = [
-    { id: 'general',     label: 'General'                  },
-    { id: 'articulos',   label: 'Artículos'                },
-    { id: 'produccion',  label: 'Producción'               },
+    { id: 'general',     label: 'General'                    },
+    { id: 'articulos',   label: `Artículos (${carpeta.articulos.length})` },
+    { id: 'produccion',  label: 'Proveedor'                  },
     { id: 'subcarpetas', label: `Embarques (${subs.length})` },
-    { id: 'documentos',  label: 'Anexos'                   },
-    { id: 'aduana',      label: 'Aduana / SAP'             },
-    { id: 'costeo',      label: 'Costeo'                   },
+    { id: 'aduana',      label: 'Aduana'                     },
+    { id: 'costeo',      label: 'Costeo'                     },
+    { id: 'documentos',  label: 'Anexos'                     },
+    { id: 'pagos',       label: 'Pagos'                      },
   ];
-  const tabs = hideImportes ? allTabs.filter(t => t.id !== 'costeo') : allTabs;
+  const tabs = allTabs.filter(t => {
+    if (t.id === 'produccion' && !permissions.canViewProduccion) return false;
+    if (t.id === 'costeo' && !permissions.canViewCosteo) return false;
+    if (t.id === 'pagos' && !permissions.canViewPagos) return false;
+    return true;
+  });
+  const activeTab = tabs.some(item => item.id === tab) ? tab : tabs[0]?.id ?? 'general';
 
   return (
     <div style={pageShell}>
 
       {/* ── Back button ──────────────────────────────────────── */}
-      <AppButton variant="tertiary" size="sm" onClick={onBack} icon={<ArrowLeft size={14} />} style={{ padding: '5px 0', marginBottom: 20, fontWeight: 400 }}>
+      <AppButton variant="tertiary" size="sm" onClick={onBack} icon={<ArrowLeft size={14} />} style={{ padding: '5px 0', marginBottom: 16, fontWeight: 400 }}>
         Volver al Dashboard
       </AppButton>
 
-      {/* ── Light page header ─────────────────────────────── */}
-      <div style={{ ...pageHeader, alignItems: 'flex-start', marginBottom: 12 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-            <h1 style={{ margin: 0, color: INK }}>{carpeta.numero}</h1>
-            {readonly && <span style={{ fontSize: 12, color: MUTED, border: `1px solid ${HAIRLINE}`, padding: '2px 8px', borderRadius: 9999 }}>Solo lectura</span>}
-            <NeonBadge estado={carpeta.estado} size="sm" />
-          </div>
-          <p style={{ fontSize: 15, color: MUTED, margin: 0, fontWeight: 400 }}>
-            {proveedor?.nombre}{!hideImportes && ` · ${formatMoney(carpeta.montoTotal, carpeta.moneda)}`} · {carpeta.incoterm} · OC {carpeta.fechaOC}
-          </p>
-          <p style={{ fontSize: 13, color: MUTED, margin: '8px 0 0' }}>Último hito: {carpeta.ultimoHito}</p>
-        </div>
-        <div style={{ ...pageActions, flexShrink: 0 }}>
-          {!readonly && (
-            <AppButton variant="secondary" icon={<Download size={13} />}>Exportar SAP</AppButton>
-          )}
-        </div>
-      </div>
+      {/* ── Welcome Banner header ─────────────────────────── */}
+      <WelcomeBanner
+        title={carpeta.numero}
+        subtitle={`${proveedor?.nombre || '—'}${!effectiveHideImportes ? ` · ${formatMoney(carpeta.montoTotal, carpeta.moneda)}` : ''} · ${carpeta.incoterm} · OC ${carpeta.fechaOC}`}
+        actions={
+          <>
+            {!readonly && <AppButton variant="secondary" icon={<Download size={13} />}>Exportar SAP</AppButton>}
+          </>
+        }
+      />
 
       {/* ── Tabs ─────────────────────────────────────────────── */}
       <div style={{ border: `1px solid ${HAIRLINE}`, borderRadius: 14, overflow: 'hidden', background: CANVAS }}>
       {isMobile ? (
         <div style={{ padding: 12, borderBottom: `1px solid ${HAIRLINE}`, background: '#f4f8f5' }}>
-          <Select value={tab} onValueChange={value => setTab(value as Tab)}>
+          <Select value={activeTab} onValueChange={value => setTab(value as Tab)}>
             <SelectTrigger aria-label="Sección de la carpeta" style={{ width: '100%', height: 40, borderRadius: 12, border: `1px solid ${HAIRLINE}`, background: CANVAS, color: INK, boxShadow: 'none' }}>
               <SelectValue />
             </SelectTrigger>
@@ -151,10 +179,10 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
           </Select>
         </div>
       ) : (
-        <Tabs value={tab} onValueChange={value => setTab(value as Tab)}>
+        <Tabs value={activeTab} onValueChange={value => setTab(value as Tab)}>
           <TabsList aria-label="Secciones de la carpeta" style={{ display: 'flex', gap: 0, width: '100%', minHeight: 48, height: 48, justifyContent: 'flex-start', padding: '0 10px', borderBottom: `1px solid ${HAIRLINE}`, borderRadius: 0, background: '#fafbfd', flexWrap: 'nowrap', overflowX: 'auto', overflowY: 'hidden' }}>
             {tabs.map(t => {
-              const active = tab === t.id;
+              const active = activeTab === t.id;
               return (
                 <TabsTrigger key={t.id} value={t.id} style={{
                   flex: 'none', padding: '0 14px', fontSize: 13, fontWeight: active ? 600 : 500,
@@ -173,16 +201,16 @@ export function CarpetaDetail({ carpetaId, onBack, readonly = false, carpetasLis
       )}
 
       {(() => {
-        const editable = false;
         return (
           <div style={{ background: CANVAS }}>
-            {tab === 'general'     && <GeneralTab     carpeta={carpeta} subs={subs} proveedor={proveedor} hideImportes={hideImportes} canEditGeneral={canEditOriginalOc} ocLockReason={ocLockReason} onUpdateGeneral={(patch: Partial<Carpeta>) => commitCarpeta(current => ({ ...current, ...patch }))} />}
-            {tab === 'articulos'   && <ArticulosTab   carpeta={carpeta} hideImportes={hideImportes} readonly={readonly} canEditOriginalOc={canEditOriginalOc} onUpdateArticulos={(articulos: Carpeta['articulos']) => commitCarpeta(current => ({ ...current, articulos }))} />}
-            {tab === 'subcarpetas' && <SubcarpetasTab carpeta={carpeta} subs={subs} nextLetter={nextLetter} activeSub={activeSub} setActiveSub={setActiveSub} readonly={readonly} hideImportes={hideImportes} onCreateSubcarpeta={(subcarpeta: Subcarpeta) => commitCarpeta(current => ({ ...current, subcarpetas: [...current.subcarpetas, subcarpeta] }))} />}
-            {tab === 'produccion'  && <ProduccionTab  carpeta={carpeta} proveedor={proveedor} editable={editable} />}
-            {tab === 'documentos'  && <DocumentosTab  carpeta={carpeta} subs={subs} readonly={readonly} />}
-            {tab === 'aduana'      && <AduanaTab      carpeta={carpeta} subs={subs} editable={editable} hideImportes={hideImportes} />}
-            {tab === 'costeo'      && <CosteoTab      carpeta={carpeta} editable={editable} />}
+            {activeTab === 'general'     && <GeneralTab     carpeta={carpeta} subs={subs} proveedor={proveedor} hideImportes={effectiveHideImportes} canEditGeneral={canEditOriginalOc} ocLockReason={ocLockReason} onUpdateGeneral={(patch: Partial<Carpeta>) => commitCarpeta(current => ({ ...current, ...patch }))} />}
+            {activeTab === 'articulos'   && <ArticulosTab   carpeta={carpeta} hideImportes={effectiveHideImportes} readonly={readonly} canEditOriginalOc={canEditOriginalOc} onUpdateArticulos={(articulos: Carpeta['articulos']) => commitCarpeta(current => ({ ...current, articulos }))} />}
+            {activeTab === 'subcarpetas' && <SubcarpetasTab carpeta={carpeta} subs={subs} nextLetter={nextLetter} activeSub={activeSub} setActiveSub={setActiveSub} readonly={readonly} hideImportes={effectiveHideImportes} onCreateSubcarpeta={(subcarpeta: Subcarpeta) => commitCarpeta(current => ({ ...current, subcarpetas: [...current.subcarpetas, subcarpeta] }))} onSelectSubcarpeta={onSelectSubcarpeta} />}
+            {activeTab === 'produccion'  && <ProduccionTab  carpeta={carpeta} proveedor={proveedor} editable={canEditProduccion} onUpdateProduccion={(patch: Partial<Carpeta>) => commitCarpeta(current => ({ ...current, ...patch }))} />}
+            {activeTab === 'aduana'      && <AduanaTab      carpeta={carpeta} subs={subs} editable={canEditAduana} hideImportes={effectiveHideImportes} onUpdateSubcarpeta={(subId: string, patch: Partial<Subcarpeta>) => commitCarpeta(current => ({ ...current, subcarpetas: current.subcarpetas.map(sub => sub.id === subId ? { ...sub, ...patch } : sub) }))} />}
+            {activeTab === 'costeo'      && <CosteoTab      carpeta={carpeta} editable={canEditCosteo} onUpdateCosteo={(patch: Partial<Carpeta>) => commitCarpeta(current => ({ ...current, ...patch }))} />}
+            {activeTab === 'documentos'  && <DocumentosTabV2  carpeta={carpeta} subs={subs} readonly={readonly} onAddDocumento={(doc: Documento, subId: string | 'madre') => commitCarpeta(current => subId === 'madre' ? ({ ...current, documentos: [...(current.documentos ?? []), doc] }) : ({ ...current, subcarpetas: current.subcarpetas.map(sub => sub.id === subId ? ({ ...sub, documentos: [...sub.documentos, doc] }) : sub) }))} />}
+            {activeTab === 'pagos'       && <PagosTab       carpeta={carpeta} editable={canEditPagos} />}
           </div>
         );
       })()}
@@ -203,6 +231,30 @@ function Input({ label, defaultValue, type = 'text', placeholder, color }: { lab
         style={{ width: '100%', padding: '10px 14px', fontSize: 17, fontWeight: 400, color: color || INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, outline: 'none' }}
       />
     </FormField>
+  );
+}
+
+function TabEditModal({ title, children, onClose, onSave, saveLabel = 'Guardar cambios' }: { title: string; children: ReactNode; onClose: () => void; onSave: () => void; saveLabel?: string }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 320, background: 'rgba(15, 23, 42, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ width: 'min(640px, 100%)', maxHeight: '90vh', background: '#fff', border: `1px solid ${HAIRLINE}`, borderRadius: 16, boxShadow: '0 22px 50px rgba(15, 23, 42, 0.22)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 16px', borderBottom: `1px solid ${HAIRLINE}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: INK }}>{title}</h2>
+          <AppButton type="button" aria-label="Cerrar" title="Cerrar" variant="ghost" size="xs" onClick={onClose} icon={<X size={14} color={MUTED} />} style={{ borderRadius: 9999 }} />
+        </div>
+        <div style={{ padding: 16, display: 'grid', gap: 14, overflowY: 'auto' }}>
+          {children}
+        </div>
+        <div style={{ padding: '12px 16px', borderTop: `1px solid ${HAIRLINE}`, display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#fff' }}>
+          <AppButton type="button" variant="secondary" size="sm" onClick={onClose}>
+            Cancelar
+          </AppButton>
+          <AppButton type="button" size="sm" onClick={onSave}>
+            {saveLabel}
+          </AppButton>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -242,34 +294,15 @@ function GeneralTab({ carpeta, subs, proveedor, hideImportes, canEditGeneral, oc
     setShowGeneralEditModal(false);
   };
 
-  const sectionHeaderStyle: React.CSSProperties = {
-    padding: '14px 16px 0',
-    background: CANVAS,
-    fontSize: 12,
-    fontWeight: 700,
-    color: INK,
-    letterSpacing: '0.02em',
-    textTransform: 'uppercase',
-  };
-  const sectionStyle: React.CSSProperties = {
-    minWidth: 0,
-    display: 'grid',
-    gridTemplateRows: 'auto 1fr',
-    background: CANVAS,
-    overflow: 'hidden',
-  };
-
   return (
-    <div style={{ display: 'grid', gap: 1, background: HAIRLINE }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 1, background: HAIRLINE }}>
-      <section style={sectionStyle} aria-labelledby="general-header-data">
-        <div id="general-header-data" style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <span>Datos de cabecera</span>
+    <div style={{ display: 'grid', gap: 16, padding: 16 }}>
+      <div style={{ display: 'grid', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Datos de cabecera</span>
           {canEditGeneral && (
             <AppButton
               type="button"
               size="sm"
-              variant="secondary"
               icon={<Pencil size={13} />}
               onClick={() => setShowGeneralEditModal(true)}
             >
@@ -277,7 +310,6 @@ function GeneralTab({ carpeta, subs, proveedor, hideImportes, canEditGeneral, oc
             </AppButton>
           )}
         </div>
-        <div style={{ padding: 16 }}>
         {!canEditGeneral && ocLockReason && (
           <div style={{ marginBottom: 12, fontSize: 12, color: MUTED }}>
             {ocLockReason}
@@ -299,12 +331,10 @@ function GeneralTab({ carpeta, subs, proveedor, hideImportes, canEditGeneral, oc
               <div style={{ fontSize: 14, color: '#b45309', lineHeight: 1.47, display: 'flex', gap: 8 }}><AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />{carpeta.observaciones}</div>
             </div>
           )}
-        </div>
-      </section>
+      </div>
 
-      <section style={sectionStyle} aria-labelledby="general-header-reference">
-        <div id="general-header-reference" style={sectionHeaderStyle}>{hideImportes ? 'Referencia' : 'Montos y referencia'}</div>
-        <div style={{ padding: 16 }}>
+      <div style={{ display: 'grid', gap: 14, paddingTop: 14, borderTop: `1px solid ${GREEN_HAIRLINE_SOFT}` }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{hideImportes ? 'Referencia' : 'Montos y referencia'}</span>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', columnGap: 24, rowGap: 18, alignItems: 'start' }}>
           <Field label="Fecha Embarque Est." value={carpeta.fechaEmbarqueEst || '—'} />
           <Field label="Ref. Proveedor" value={carpeta.referenciaProveedor || '—'} />
@@ -325,18 +355,26 @@ function GeneralTab({ carpeta, subs, proveedor, hideImportes, canEditGeneral, oc
             </div>
           </div>
         )}
-        </div>
-      </section>
+      </div>
 
       {subs.length > 0 && (
-        <section style={{ ...sectionStyle, gridColumn: '1 / -1' }} aria-labelledby="general-header-shipments">
-          <div id="general-header-shipments" style={sectionHeaderStyle}>Embarques</div>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(subs.length, 3)}, minmax(0, 1fr))`, gap: 8, padding: 16 }}>
-            {subs.map((s: Subcarpeta) => <ShipmentCard key={s.id} numero={s.numero} estado={s.estado} transporte={s.transporte} eta={s.eta} canalAduana={s.canalAduana} />)}
+        <section style={{ gridColumn: '1 / -1', border: `1px solid ${GREEN_HAIRLINE}`, borderRadius: radius.lg, background: CANVAS, overflow: 'hidden' }} aria-labelledby="general-header-shipments">
+          <div id="general-header-shipments" style={{ padding: '14px 16px 12px', fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.06em', textTransform: 'uppercase', borderBottom: `1px solid ${GREEN_HAIRLINE_SOFT}` }}>Embarques</div>
+          <div style={{ display: 'grid', gridTemplateColumns: subs.length === 1 ? '1fr' : isMobile ? '1fr' : `repeat(${Math.min(subs.length, 3)}, minmax(0, 1fr))`, gap: 0, padding: '4px 0', background: '#fafefd' }}>
+            {subs.map((s: Subcarpeta, index: number) => (
+              <SubcarpetaTableLine
+                key={s.id}
+                sub={s}
+                mobileStacked={isMobile}
+                fullWidth={subs.length === 1}
+                showDivider={!isMobile && index > 0}
+                showMobileDivider={isMobile && index > 0}
+                onClick={() => undefined}
+              />
+            ))}
           </div>
         </section>
       )}
-      </div>
 
       {showGeneralEditModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 320, background: 'rgba(15, 23, 42, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -648,7 +686,7 @@ function ArticulosTab({ carpeta, readonly, hideImportes, canEditOriginalOc, onUp
   );
 }
 
-function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, readonly, hideImportes, onCreateSubcarpeta }: any) {
+function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, readonly, hideImportes, onCreateSubcarpeta, onSelectSubcarpeta }: any) {
   const isMobile = useIsMobile();
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ facturaNum: '', fechaFactura: '', transporte: 'Marítimo', buqueForwarder: '', blCrtAwb: '', contenedores: '1', eta: '' });
@@ -666,6 +704,7 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
     return quantity < 0 || quantity > articulo.saldoPendiente;
   });
   const canCreate = form.facturaNum && form.fechaFactura && form.eta && form.buqueForwarder && form.blCrtAwb && selectedTotal > 0 && !hasInvalidAssignment;
+  const activeSubcarpeta = subs.find((sub: Subcarpeta) => sub.id === activeSub) ?? null;
 
   const resetModal = () => {
     setShowModal(false);
@@ -742,10 +781,32 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
           </div>
         )}
         {subs.length > 0 && (
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : `repeat(${Math.min(subs.length, 3)}, minmax(0, 1fr))`, gap: 8, alignItems: 'start', padding: '4px 16px 16px' }}>
-            {subs.map((sub: Subcarpeta) => (
-              <SubcarpetaCard key={sub.id} sub={sub} carpeta={carpeta} expanded={activeSub === sub.id} onToggle={() => setActiveSub(activeSub === sub.id ? null : sub.id)} hideImportes={hideImportes} />
-            ))}
+          <div style={{ display: 'grid', gap: 0, padding: '0' }}>
+            <div style={{ border: 'none', borderRadius: 0, overflow: 'visible', background: 'transparent' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: subs.length === 1 ? '1fr' : isMobile ? '1fr' : `repeat(${Math.min(subs.length, 3)}, minmax(0, 1fr))`, gap: 0, padding: '4px 0', background: '#fafefd', borderTop: `1px solid ${GREEN_HAIRLINE_SOFT}`, borderBottom: `1px solid ${GREEN_HAIRLINE_SOFT}` }}>
+                {subs.map((sub: Subcarpeta, index: number) => (
+                  <SubcarpetaTableLine
+                    key={sub.id}
+                    sub={sub}
+                    mobileStacked={isMobile}
+                    fullWidth={subs.length === 1}
+                    showDivider={!isMobile && index > 0}
+                    showMobileDivider={isMobile && index > 0}
+                    onClick={() => {
+                      if (onSelectSubcarpeta) {
+                        onSelectSubcarpeta(sub.id);
+                        return;
+                      }
+
+                      setActiveSub(activeSub === sub.id ? null : sub.id);
+                    }}
+                  />
+                ))}
+              </div>
+              {!onSelectSubcarpeta && activeSubcarpeta && (
+                <SubcarpetaExpandedPanel sub={activeSubcarpeta} carpeta={carpeta} hideImportes={hideImportes} />
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -861,112 +922,211 @@ function SubcarpetasTab({ carpeta, subs, nextLetter, activeSub, setActiveSub, re
   );
 }
 
-function SubcarpetaCard({ sub, carpeta, expanded, onToggle, hideImportes }: any) {
-  const hasInc = sub.incidencias?.length > 0;
+function SubcarpetaTableLine({ sub, onClick, showDivider = false, showMobileDivider = false, fullWidth = false, mobileStacked = false }: { sub: Subcarpeta; onClick: () => void; showDivider?: boolean; showMobileDivider?: boolean; fullWidth?: boolean; mobileStacked?: boolean }) {
+  const desktopSingleWidth = fullWidth && !mobileStacked;
+
   return (
-    <ShipmentCard numero={sub.numero} estado={sub.estado} transporte={sub.transporte} eta={sub.eta} canalAduana={sub.canalAduana} forwarder={sub.buqueForwarder} documento={sub.blCrtAwb} incidentCount={hasInc ? sub.incidencias.length : 0} expanded={expanded} onToggle={onToggle}>
-      {expanded && (
-        <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${HAIRLINE}`, background: '#fafbfd' }}>
-          <div style={{ paddingTop: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 16 }}>
-            <Field label="Factura N°" value={sub.facturaNum} />
-            <Field label="Fecha Factura" value={sub.fechaFactura} />
-            {!hideImportes && <Field label="Importe Total" value={formatMoney(sub.importeTotal, carpeta.moneda)} />}
-            <Field label="Contenedores" value={sub.contenedores} />
-            <Field label="Peso Neto (Kg)" value={sub.pesoNeto.toLocaleString()} />
-            <Field label="Peso Bruto (Kg)" value={sub.pesoBruto.toLocaleString()} />
-            <Field label="UME" value={`${sub.ume.toLocaleString()} ${sub.umeUnidad}`} />
-            <Field label="SAP Tx.55" value={sub.pedidoSAP55 || '—'} color={sub.pedidoSAP55 ? INK : MUTED} />
-            <Field label="SAP Tx.18" value={sub.ingresoSAP18 || '—'} color={sub.ingresoSAP18 ? '#1a7a4a' : MUTED} />
-            <Field label="DUA N°" value={sub.duaNum || '—'} color={sub.duaNum ? INK : MUTED} />
-          </div>
-
-          {sub.articulosEmbarque.length > 0 && (
-            <div style={{ marginTop: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: MUTED, marginBottom: 8 }}>ARTÍCULOS EN ESTE EMBARQUE</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {sub.articulosEmbarque.map((ae: any) => {
-                  const art = carpeta.articulos.find((a: any) => a.id === ae.articuloId);
-                  if (!art) return null;
-                  const saldoPosterior = art.cantidadSolicitada - art.cantidadAsignada;
-                  return (
-                    <div key={ae.articuloId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: PARCHMENT, borderRadius: 11, fontSize: 14 }}>
-                      <span style={{ fontWeight: 600, color: INK }}>{art.codigoSAP}</span>
-                      <span style={{ color: INK, flex: 1 }}>{art.descripcion}</span>
-                      <span style={{ fontWeight: 600, color: INK, fontVariantNumeric: 'tabular-nums' }}>{ae.cantidad.toLocaleString()} {art.um}</span>
-                      <span style={{ fontSize: 12, color: saldoPosterior === 0 ? '#1a7a4a' : '#b45309' }}>Saldo: {saldoPosterior.toLocaleString()} {art.um}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {hasInc && (
-            <Alert variant="destructive" className="mt-4 bg-red-50">
-              <AlertTriangle aria-hidden="true" />
-              <AlertTitle>Incidencias del embarque</AlertTitle>
-              <AlertDescription>
-              {sub.incidencias.map((inc: any) => (
-                <div key={inc.id}>
-                  <strong>{inc.tipo}</strong> — {inc.cantidadAfectada} unidades — {inc.comentario}
-                </div>
-              ))}
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
-      )}
-    </ShipmentCard>
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        minHeight: mobileStacked ? 56 : 36,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) auto 20px',
+        gridTemplateRows: mobileStacked ? 'auto auto' : undefined,
+        alignItems: 'center',
+        columnGap: mobileStacked ? 12 : 10,
+        rowGap: mobileStacked ? 4 : 2,
+        padding: mobileStacked ? '10px 16px 10px 12px' : (desktopSingleWidth ? '10px 16px' : '10px 16px 10px 12px'),
+        position: 'relative',
+        border: 'none',
+        borderRadius: 0,
+        background: 'transparent',
+        cursor: 'pointer',
+        textAlign: 'left',
+        appearance: 'none',
+        WebkitAppearance: 'none',
+        boxShadow: 'none',
+      }}
+    >
+      {showDivider && <span aria-hidden="true" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 1, background: HAIRLINE, borderRadius: 0 }} />}
+      {showMobileDivider && <span aria-hidden="true" style={{ position: 'absolute', left: 12, right: 12, top: 0, height: 1, background: GREEN_HAIRLINE_SOFT }} />}
+      <span style={{ minWidth: 0, display: 'grid', gap: mobileStacked ? 4 : 2, gridColumn: mobileStacked ? '1 / 2' : undefined, gridRow: mobileStacked ? '1 / 3' : undefined }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: INK, whiteSpace: mobileStacked ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: mobileStacked ? 'clip' : 'ellipsis', overflowWrap: 'anywhere', minWidth: 0 }}>{sub.numero}</span>
+        <span style={{ fontSize: 11, color: MUTED, overflow: 'hidden', textOverflow: mobileStacked ? 'clip' : 'ellipsis', whiteSpace: mobileStacked ? 'normal' : 'nowrap', lineHeight: mobileStacked ? 1.35 : 1.2 }}>ETA {sub.eta || '-'} · {sub.contenedores || 0} cont.</span>
+      </span>
+      <span style={{ gridColumn: mobileStacked ? '2 / 3' : undefined, gridRow: mobileStacked ? '1 / 3' : undefined, alignSelf: 'center', justifySelf: 'end', display: 'inline-flex', alignItems: 'center' }}>
+        <NeonBadge estado={sub.estado as any} size="xs" />
+      </span>
+      <span style={{ gridColumn: mobileStacked ? '3 / 4' : undefined, gridRow: mobileStacked ? '1 / 3' : undefined, width: 20, alignSelf: 'center', justifySelf: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+        <ChevronRight size={12} style={{ color: '#98a2b3', flexShrink: 0 }} />
+      </span>
+    </button>
   );
 }
 
-function ProduccionTab({ carpeta, proveedor, editable }: any) {
+function SubcarpetaExpandedPanel({ sub, carpeta, hideImportes }: { sub: Subcarpeta; carpeta: Carpeta; hideImportes: boolean }) {
+  const hasInc = sub.incidencias?.length > 0;
+
+  return (
+    <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${HAIRLINE}`, background: '#fafbfd' }}>
+      <div style={{ paddingTop: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 16 }}>
+        <Field label="Factura N°" value={sub.facturaNum} />
+        <Field label="Fecha Factura" value={sub.fechaFactura} />
+        {!hideImportes && <Field label="Importe Total" value={formatMoney(sub.importeTotal, carpeta.moneda)} />}
+        <Field label="Contenedores" value={sub.contenedores} />
+        <Field label="Peso Neto (Kg)" value={sub.pesoNeto.toLocaleString()} />
+        <Field label="Peso Bruto (Kg)" value={sub.pesoBruto.toLocaleString()} />
+        <Field label="UME" value={`${sub.ume.toLocaleString()} ${sub.umeUnidad}`} />
+        <Field label="SAP Tx.55" value={sub.pedidoSAP55 || '—'} color={sub.pedidoSAP55 ? INK : MUTED} />
+        <Field label="SAP Tx.18" value={sub.ingresoSAP18 || '—'} color={sub.ingresoSAP18 ? '#1a7a4a' : MUTED} />
+        <Field label="DUA N°" value={sub.duaNum || '—'} color={sub.duaNum ? INK : MUTED} />
+      </div>
+
+      {sub.articulosEmbarque.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: MUTED, marginBottom: 8 }}>ARTÍCULOS EN ESTE EMBARQUE</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {sub.articulosEmbarque.map((ae: any) => {
+              const art = carpeta.articulos.find((a: any) => a.id === ae.articuloId);
+              if (!art) return null;
+              const saldoPosterior = art.cantidadSolicitada - art.cantidadAsignada;
+              return (
+                <div key={ae.articuloId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: PARCHMENT, borderRadius: 11, fontSize: 14 }}>
+                  <span style={{ fontWeight: 600, color: INK }}>{art.codigoSAP}</span>
+                  <span style={{ color: INK, flex: 1 }}>{art.descripcion}</span>
+                  <span style={{ fontWeight: 600, color: INK, fontVariantNumeric: 'tabular-nums' }}>{ae.cantidad.toLocaleString()} {art.um}</span>
+                  <span style={{ fontSize: 12, color: saldoPosterior === 0 ? '#1a7a4a' : '#b45309' }}>Saldo: {saldoPosterior.toLocaleString()} {art.um}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {hasInc && (
+        <Alert variant="destructive" className="mt-4 bg-red-50">
+          <AlertTriangle aria-hidden="true" />
+          <AlertTitle>Incidencias del embarque</AlertTitle>
+          <AlertDescription>
+          {sub.incidencias.map((inc: any) => (
+            <div key={inc.id}>
+              <strong>{inc.tipo}</strong> — {inc.cantidadAfectada} unidades — {inc.comentario}
+            </div>
+          ))}
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+}
+
+function ProduccionTab({ carpeta, proveedor, editable, onUpdateProduccion }: any) {
   const isMobile = useIsMobile();
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [form, setForm] = useState({
+    referenciaProveedor: carpeta.referenciaProveedor || '',
+    fechaEmbarqueEst: carpeta.fechaEmbarqueEst || '',
+    controlConforme: carpeta.controlConforme,
+    observaciones: carpeta.observaciones || '',
+  });
   const fechaCalc = proveedor && carpeta.fechaOC
     ? new Date(new Date(carpeta.fechaOC).getTime() + proveedor.diasProd * 86400000).toISOString().split('T')[0]
     : '—';
 
+  useEffect(() => {
+    setForm({
+      referenciaProveedor: carpeta.referenciaProveedor || '',
+      fechaEmbarqueEst: carpeta.fechaEmbarqueEst || '',
+      controlConforme: carpeta.controlConforme,
+      observaciones: carpeta.observaciones || '',
+    });
+  }, [carpeta.referenciaProveedor, carpeta.fechaEmbarqueEst, carpeta.controlConforme, carpeta.observaciones]);
+
+  const saveProduccion = () => {
+    onUpdateProduccion({
+      referenciaProveedor: form.referenciaProveedor.trim(),
+      fechaEmbarqueEst: form.fechaEmbarqueEst,
+      controlConforme: form.controlConforme,
+      observaciones: form.observaciones.trim(),
+    });
+    setShowEditModal(false);
+  };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(280px, 0.85fr) minmax(0, 1.65fr)', gap: 1, alignItems: 'stretch', background: HAIRLINE }}>
-      <Card title="Confirmación del Proveedor">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {editable
-            ? <Input label="Referencia Proveedor" defaultValue={carpeta.referenciaProveedor} />
-            : <Field label="Referencia Proveedor" value={carpeta.referenciaProveedor || '—'} />
-          }
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${carpeta.controlConforme ? '#1a7a4a' : HAIRLINE}`, background: carpeta.controlConforme ? '#1a7a4a' : CANVAS, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {carpeta.controlConforme && <CheckCircle size={11} color="#fff" />}
-            </div>
-            <span style={{ fontSize: 15, color: carpeta.controlConforme ? '#1a7a4a' : MUTED }}>Control conforme artículo por artículo</span>
-          </div>
-          {carpeta.observaciones && (
-            <div style={{ padding: '14px', background: 'rgba(180,83,9,0.06)', border: '1px solid rgba(180,83,9,0.2)', borderRadius: 11, fontSize: 14, color: '#b45309', lineHeight: 1.47 }}>
-              {carpeta.observaciones}
-            </div>
+    <>
+    <div style={{ display: 'grid', gap: 16, padding: 16 }}>
+      <div style={{ display: 'grid', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Confirmación del proveedor</span>
+          {editable && (
+            <AppButton type="button" size="sm" icon={<Pencil size={13} />} onClick={() => setShowEditModal(true)}>
+              Editar sección
+            </AppButton>
           )}
         </div>
-      </Card>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', columnGap: 24, rowGap: 18, alignItems: 'start' }}>
+          <Field label="Referencia Proveedor" value={carpeta.referenciaProveedor || '—'} />
+          <div>
+            <div style={{ fontSize: 12, color: MUTED, marginBottom: 4 }}>Control artículo por artículo</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 22 }}>
+              <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid ${carpeta.controlConforme ? '#1a7a4a' : HAIRLINE}`, background: carpeta.controlConforme ? '#1a7a4a' : CANVAS, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {carpeta.controlConforme && <CheckCircle size={11} color="#fff" />}
+              </div>
+              <span style={{ fontSize: 15, color: carpeta.controlConforme ? '#1a7a4a' : MUTED }}>{carpeta.controlConforme ? 'Conforme' : 'Con diferencias'}</span>
+            </div>
+          </div>
+          <Field label="Fecha Embarque Est." value={carpeta.fechaEmbarqueEst || '—'} />
+        </div>
+        {carpeta.observaciones && (
+          <div style={{ marginTop: 4, padding: '12px 14px', background: 'rgba(180,83,9,0.05)', borderLeft: '3px solid #b45309' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#b45309', marginBottom: 7, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Observaciones / reclamos</div>
+            <div style={{ fontSize: 14, color: '#b45309', lineHeight: 1.47, display: 'flex', gap: 8 }}><AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />{carpeta.observaciones}</div>
+          </div>
+        )}
+      </div>
 
-      <Card title="Seguimiento de Producción en Origen">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'grid', gap: 14, paddingTop: 14, borderTop: `1px solid ${GREEN_HAIRLINE_SOFT}` }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: MUTED, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Seguimiento de producción en origen</span>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', columnGap: 24, rowGap: 18, alignItems: 'start' }}>
           <Field label="Proveedor" value={proveedor?.nombre || '—'} />
           <Field label="País Origen" value={proveedor?.pais || '—'} />
           <Field label="Días de Producción (Maestro)" value={`${proveedor?.diasProd || '—'} días`} />
           <Field label="Fecha O/C" value={carpeta.fechaOC} />
-          <div style={{ padding: '16px', background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 14 }}>
-            <div style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>FECHA EMBARQUE ESTIMADA (calculada)</div>
-            <div style={{ fontSize: 28, fontWeight: 600, color: INK, letterSpacing: '-0.374px' }}>{fechaCalc}</div>
-            <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>Fecha O/C + {proveedor?.diasProd} días de producción</div>
-          </div>
-          {carpeta.fechaEmbarqueEst !== fechaCalc && (
-            <div style={{ padding: '10px 14px', background: 'rgba(180,83,9,0.06)', border: '1px solid rgba(180,83,9,0.2)', borderRadius: 9999, fontSize: 14, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <AlertTriangle size={14} /> Desvío detectado — Registrada: {carpeta.fechaEmbarqueEst}
-            </div>
-          )}
         </div>
-      </Card>
+        <div style={{ padding: '16px', background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 14, maxWidth: isMobile ? '100%' : 420 }}>
+          <div style={{ fontSize: 12, color: MUTED, marginBottom: 6 }}>FECHA EMBARQUE ESTIMADA (calculada)</div>
+          <div style={{ fontSize: 28, fontWeight: 600, color: INK, letterSpacing: '-0.374px' }}>{fechaCalc}</div>
+          <div style={{ fontSize: 12, color: MUTED, marginTop: 4 }}>Fecha O/C + {proveedor?.diasProd} días de producción</div>
+        </div>
+        {carpeta.fechaEmbarqueEst !== fechaCalc && (
+          <div style={{ padding: '10px 14px', background: 'rgba(180,83,9,0.06)', border: '1px solid rgba(180,83,9,0.2)', borderRadius: 9999, fontSize: 14, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6, width: 'fit-content', maxWidth: '100%' }}>
+            <AlertTriangle size={14} /> Desvío detectado — Registrada: {carpeta.fechaEmbarqueEst}
+          </div>
+        )}
+      </div>
     </div>
+    {showEditModal && (
+      <TabEditModal title="Editar producción y pre-embarque" onClose={() => setShowEditModal(false)} onSave={saveProduccion}>
+        <FormField label="Referencia proveedor">
+          <input value={form.referenciaProveedor} onChange={event => setForm(prev => ({ ...prev, referenciaProveedor: event.target.value }))} placeholder="Referencia interna" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+        </FormField>
+        <FormField label="Fecha embarque estimada">
+          <input type="date" value={form.fechaEmbarqueEst} onChange={event => setForm(prev => ({ ...prev, fechaEmbarqueEst: event.target.value }))} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+        </FormField>
+        <FormField label="Control artículo por artículo">
+          <div style={{ display: 'flex', gap: 8 }}>
+            <AppButton type="button" size="sm" variant={form.controlConforme ? 'success-soft' : 'secondary'} onClick={() => setForm(prev => ({ ...prev, controlConforme: true }))}>Conforme</AppButton>
+            <AppButton type="button" size="sm" variant={!form.controlConforme ? 'danger-soft' : 'secondary'} onClick={() => setForm(prev => ({ ...prev, controlConforme: false }))}>Con diferencias</AppButton>
+          </div>
+        </FormField>
+        <FormField label="Observaciones / reclamos">
+          <textarea value={form.observaciones} onChange={event => setForm(prev => ({ ...prev, observaciones: event.target.value }))} rows={4} style={{ width: '100%', padding: '10px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
+        </FormField>
+      </TabEditModal>
+    )}
+    </>
   );
 }
 
@@ -1063,10 +1223,159 @@ function DocumentosTab({ carpeta, subs, readonly }: any) {
   );
 }
 
-function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
+function DocumentosTabV2({ carpeta, subs, readonly, onAddDocumento }: { carpeta: Carpeta; subs: Subcarpeta[]; readonly: boolean; onAddDocumento: (doc: Documento, subId: string | 'madre') => void }) {
+  const isMobile = useIsMobile();
+  const [referencia, setReferencia] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [tipo, setTipo] = useState<Documento['tipo']>('Factura Comercial');
+  const [target, setTarget] = useState<string | 'madre'>('madre');
+  const subcarpetas = subs as Subcarpeta[];
+  const allDocs = [
+    ...((carpeta.documentos ?? []).map((d: Documento) => ({ ...d, origen: 'Carpeta madre' }))),
+    ...subcarpetas.flatMap(s => s.documentos.map((d: Documento) => ({ ...d, origen: s.numero }))),
+  ];
+  const tipoColors: Record<string, string> = {
+    'Factura Comercial': '#5b21b6',
+    'Bill of Lading / CRT': '#5e5ce6',
+    'Packing List': '#b45309',
+    'Certificado de Origen': '#0066cc',
+  };
+  const canAttach = Boolean(selectedFile);
+  const handleAttach = () => {
+    if (!canAttach) return;
+    onAddDocumento({
+      id: `doc-${Date.now()}`,
+      nombre: selectedFile!.name,
+      referencia: referencia.trim() || undefined,
+      tipo,
+      tamano: `${Math.max(1, Math.round(selectedFile!.size / 1024))} KB`,
+      fecha: new Date().toISOString().split('T')[0],
+    }, target);
+    setReferencia('');
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  return (
+    <div style={{ padding: isMobile ? 10 : 14, display: 'flex', flexDirection: 'column', gap: 12, background: CANVAS }}>
+      {!readonly && (
+        <div style={{ display: 'grid', gap: 12, padding: 12, border: `1px dashed ${HAIRLINE}`, borderRadius: 12, background: '#fafbfd' }}>
+          <div
+            onDragOver={event => { event.preventDefault(); setIsDragActive(true); }}
+            onDragEnter={event => { event.preventDefault(); setIsDragActive(true); }}
+            onDragLeave={event => {
+              event.preventDefault();
+              const nextTarget = event.relatedTarget as Node | null;
+              if (!nextTarget || !event.currentTarget.contains(nextTarget)) setIsDragActive(false);
+            }}
+            onDrop={event => {
+              event.preventDefault();
+              setIsDragActive(false);
+              const file = event.dataTransfer.files?.[0];
+              if (file) setSelectedFile(file);
+            }}
+            style={{ border: `2px dashed ${isDragActive ? GREEN : HAIRLINE}`, borderRadius: 18, background: isDragActive ? 'rgba(26,92,56,0.06)' : PARCHMENT, padding: 14, transition: 'border-color 0.15s, background 0.15s' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ minWidth: 0 }}>
+                {selectedFile ? (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedFile.name}</div>
+                ) : (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>Sin archivo adjunto</div>
+                )}
+                {!selectedFile && <div style={{ fontSize: 11, color: MUTED, marginTop: 4 }}>Arrastrá un archivo o adjuntalo desde tu equipo.</div>}
+              </div>
+              {!selectedFile ? (
+                <button type="button" onClick={() => fileInputRef.current?.click()} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 38, padding: '8px 12px', borderRadius: 9999, border: `1px solid ${GREEN}`, background: CANVAS, color: GREEN, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  <Upload size={14} /> Adjuntar archivo
+                </button>
+              ) : (
+                <button type="button" onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, padding: 0, borderRadius: 9999, border: 'none', background: 'rgba(196,0,26,0.06)', color: '#c4001a', cursor: 'pointer' }}>
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+            <input ref={fileInputRef} type="file" onChange={event => setSelectedFile(event.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+          </div>
+          {selectedFile && (
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(180px, 1fr) minmax(160px, 0.75fr) minmax(160px, 0.75fr) auto', gap: 10, alignItems: 'end', paddingTop: 2 }}>
+              <FormField label="Referencia">
+                <input value={referencia} onChange={event => setReferencia(event.target.value)} placeholder="Nombre de referencia" style={{ width: '100%', minHeight: 38, padding: '9px 12px', fontSize: 13, color: INK, background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+              </FormField>
+              <FormField label="Tipo de anexo">
+                <select value={tipo} onChange={event => setTipo(event.target.value as Documento['tipo'])} style={{ width: '100%', minHeight: 38, padding: '9px 12px', fontSize: 13, color: INK, background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }}>
+                  {Object.keys(tipoColors).map(item => <option key={item}>{item}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Pertenece a">
+                <select value={target} onChange={event => setTarget(event.target.value)} style={{ width: '100%', minHeight: 38, padding: '9px 12px', fontSize: 13, color: INK, background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }}>
+                  <option value="madre">Carpeta madre</option>
+                  {subcarpetas.map(sub => <option key={sub.id} value={sub.id}>{sub.numero}</option>)}
+                </select>
+              </FormField>
+              <AppButton type="button" size="sm" icon={<Upload size={13} />} disabled={!canAttach} onClick={handleAttach} style={{ minHeight: 38 }}>Adjuntar</AppButton>
+            </div>
+          )}
+        </div>
+      )}
+      {allDocs.length > 0 ? (
+        <div style={{ overflow: 'hidden', background: CANVAS, border: `1px solid ${HAIRLINE}`, borderRadius: 12 }}>
+          {isMobile ? (
+            <div>
+              {allDocs.map((doc: any, i: number) => {
+                const color = tipoColors[doc.tipo] || MUTED;
+                return (
+                  <div key={doc.id} style={{ padding: '14px 16px', borderBottom: i < allDocs.length - 1 ? `1px solid ${HAIRLINE}` : 'none' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: INK }}>{doc.nombre}</div>
+                    {doc.referencia && <div style={{ fontSize: 12, color: MUTED, marginTop: 3 }}>Ref. {doc.referencia}</div>}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      <span style={{ fontSize: 11, color, background: `${color}14`, border: `1px solid ${color}33`, borderRadius: 9999, padding: '3px 8px' }}>{doc.tipo}</span>
+                      <span style={{ fontSize: 11, color: GREEN, background: 'rgba(26,92,56,0.08)', border: '1px solid rgba(26,92,56,0.18)', borderRadius: 9999, padding: '3px 8px' }}>{doc.origen}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: MUTED, marginTop: 8 }}>{doc.tamano} · {doc.fecha}</div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={tableHeadRow}>{['Origen', 'Tipo', 'Archivo', 'Tamaño', 'Fecha', ''].map(col => <th key={col} style={tableHeadCell}>{col}</th>)}</tr></thead>
+              <tbody>
+                {allDocs.map((doc: any, i: number) => {
+                  const color = tipoColors[doc.tipo] || MUTED;
+                  return (
+                    <tr key={doc.id} style={{ borderBottom: i < allDocs.length - 1 ? `1px solid ${HAIRLINE}` : 'none' }}>
+                      <td style={{ padding: '12px 16px' }}><span style={{ fontSize: 12, fontWeight: 600, color: GREEN, background: 'rgba(26,92,56,0.08)', border: '1px solid rgba(26,92,56,0.18)', borderRadius: 9999, padding: '3px 8px' }}>{doc.origen}</span></td>
+                      <td style={{ padding: '12px 16px' }}><span style={{ fontSize: 12, color, background: `${color}14`, border: `1px solid ${color}33`, borderRadius: 9999, padding: '3px 8px' }}>{doc.tipo}</span></td>
+                      <td style={{ padding: '12px 16px', fontSize: 14, color: INK }}>
+                        <div>{doc.nombre}</div>
+                        {doc.referencia && <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>Ref. {doc.referencia}</div>}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: MUTED }}>{doc.tamano}</td>
+                      <td style={{ padding: '12px 16px', fontSize: 13, color: MUTED }}>{doc.fecha}</td>
+                      <td style={{ padding: '12px 16px' }}><AppButton size="xs" variant="tertiary">Ver</AppButton></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ) : (
+        <div style={{ textAlign: 'center', color: MUTED, fontSize: 15, padding: '32px 0' }}>Sin anexos adjuntos.</div>
+      )}
+    </div>
+  );
+}
+
+function AduanaTab({ carpeta, subs, editable, hideImportes, onUpdateSubcarpeta }: any) {
   const isMobile = useIsMobile();
   const subcarpetas = subs as Subcarpeta[];
   const [selectedSubId, setSelectedSubId] = useState<string>(subcarpetas[0]?.id ?? '');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [form, setForm] = useState({ despachante: '', duaNum: '', canalAduana: 'Pendiente', despachoTipo: '', gastosARS: '', vepUSD: '', fechaOficializacion: '', fechaSalidaPuerto: '', pedidoSAP55: '' });
 
   useEffect(() => {
     if (subcarpetas.length > 0 && !subcarpetas.some(item => item.id === selectedSubId)) setSelectedSubId(subcarpetas[0].id);
@@ -1075,31 +1384,53 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
   const sub = subcarpetas.find(item => item.id === selectedSubId) ?? subcarpetas[0];
   if (!sub) return <div style={{ textAlign: 'center', padding: '64px', color: MUTED }}>Sin subcarpetas para gestionar aduana.</div>;
 
+  useEffect(() => {
+    setForm({
+      despachante: sub.despachante || '',
+      duaNum: sub.duaNum || '',
+      canalAduana: sub.canalAduana || 'Pendiente',
+      despachoTipo: sub.despachoTipo || '',
+      gastosARS: sub.gastosARS ? String(sub.gastosARS) : '',
+      vepUSD: sub.vepUSD ? String(sub.vepUSD) : '',
+      fechaOficializacion: sub.fechaOficializacion || '',
+      fechaSalidaPuerto: sub.fechaSalidaPuerto || '',
+      pedidoSAP55: sub.pedidoSAP55 || '',
+    });
+  }, [sub.id, sub.despachante, sub.duaNum, sub.canalAduana, sub.despachoTipo, sub.gastosARS, sub.vepUSD, sub.fechaOficializacion, sub.fechaSalidaPuerto, sub.pedidoSAP55]);
+
+  const saveAduana = () => {
+    onUpdateSubcarpeta(sub.id, {
+      despachante: form.despachante,
+      duaNum: form.duaNum.trim(),
+      canalAduana: form.canalAduana,
+      despachoTipo: form.despachoTipo || undefined,
+      gastosARS: form.gastosARS ? Number(form.gastosARS) : undefined,
+      vepUSD: form.vepUSD ? Number(form.vepUSD) : undefined,
+      fechaOficializacion: form.fechaOficializacion,
+      fechaSalidaPuerto: form.fechaSalidaPuerto,
+      pedidoSAP55: form.pedidoSAP55.trim(),
+    });
+    setShowEditModal(false);
+  };
+
   return (
     <div>
-      <div style={{ minHeight: 64, padding: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderBottom: `1px solid ${HAIRLINE}`, background: '#fafbfd' }}>
+      <div style={{ minHeight: 64, padding: '16px 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderBottom: `1px solid ${HAIRLINE}`, background: '#fafbfd' }}>
         <div><div style={{ fontSize: 12, color: MUTED }}>Gestionando embarque</div><div style={{ marginTop: 2, fontSize: 14, fontWeight: 700, color: INK }}>{sub.numero} · {sub.estado}</div></div>
-        {subcarpetas.length > 1 && (
-          <Select value={selectedSubId} onValueChange={setSelectedSubId}>
-            <SelectTrigger aria-label="Seleccionar embarque" style={{ width: isMobile ? '100%' : 240, minHeight: 42, borderRadius: 12, background: CANVAS }}><SelectValue /></SelectTrigger>
-            <SelectContent>{subcarpetas.map(item => <SelectItem key={item.id} value={item.id}>{item.numero} · {item.estado}</SelectItem>)}</SelectContent>
-          </Select>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+          {subcarpetas.length > 1 && (
+            <Select value={selectedSubId} onValueChange={setSelectedSubId}>
+              <SelectTrigger aria-label="Seleccionar embarque" style={{ width: isMobile ? '100%' : 240, minHeight: 42, borderRadius: 12, background: CANVAS }}><SelectValue /></SelectTrigger>
+              <SelectContent>{subcarpetas.map(item => <SelectItem key={item.id} value={item.id}>{item.numero} · {item.estado}</SelectItem>)}</SelectContent>
+            </Select>
+          )}
+          {editable && <AppButton type="button" size="sm" icon={<Pencil size={13} />} onClick={() => setShowEditModal(true)}>Editar sección</AppButton>}
+        </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 1, alignItems: 'stretch', background: HAIRLINE }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 12, alignItems: 'stretch' }}>
       <Card title="Estado Aduanero AFIP">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {editable
-            ? (
-              <div>
-                <label style={{ fontSize: 12, color: MUTED, display: 'block', marginBottom: 4 }}>Despachante Aduanero</label>
-                <select defaultValue={sub.despachante} style={{ width: '100%', padding: '10px 14px', fontSize: 15, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 9999, outline: 'none' }}>
-                  {DESPACHANTES.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
-                </select>
-              </div>
-            )
-            : <Field label="Despachante Aduanero" value={getDespachante(sub.despachante)?.nombre || '—'} />
-          }
+          <Field label="Despachante Aduanero" value={getDespachante(sub.despachante)?.nombre || '—'} />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 18, height: 18, borderRadius: 4, border: `2px solid #1a7a4a`, background: '#1a7a4a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1108,10 +1439,7 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
             <span style={{ fontSize: 15, color: '#1a7a4a' }}>OK Documental Despachante</span>
           </div>
 
-          {editable
-            ? <Input label="N° Declaración Detallada (DUA)" defaultValue={sub.duaNum} placeholder="26001-CUSBA-2026-XXXXXX" />
-            : <Field label="N° Declaración Detallada (DUA)" value={sub.duaNum || '—'} color={sub.duaNum ? INK : MUTED} />
-          }
+          <Field label="N° Declaración Detallada (DUA)" value={sub.duaNum || '—'} color={sub.duaNum ? INK : MUTED} />
 
           <div>
             <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>Canal Aduanero</div>
@@ -1158,14 +1486,8 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
 
       <Card title="Referencias Cruzadas SAP">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {editable
-            ? <Input label="Tx.45 — N° Pedido OC" defaultValue={carpeta.pedidoSAP45} placeholder="Ej. 4500012345" />
-            : <Field label="Tx.45 — N° Pedido OC" value={carpeta.pedidoSAP45 || '—'} color={carpeta.pedidoSAP45 ? INK : MUTED} />
-          }
-          {editable
-            ? <Input label="Tx.55 — En Tránsito" defaultValue={sub.pedidoSAP55} placeholder="Ej. 5500009321" />
-            : <Field label="Tx.55 — En Tránsito" value={sub.pedidoSAP55 || '—'} color={sub.pedidoSAP55 ? INK : MUTED} />
-          }
+          <Field label="Tx.45 — N° Pedido OC" value={carpeta.pedidoSAP45 || '—'} color={carpeta.pedidoSAP45 ? INK : MUTED} />
+          <Field label="Tx.55 — En Tránsito" value={sub.pedidoSAP55 || '—'} color={sub.pedidoSAP55 ? INK : MUTED} />
           <Field label="Tx.18 — Ingreso Mercadería" value={sub.ingresoSAP18 || '—'} color={sub.ingresoSAP18 ? '#1a7a4a' : MUTED} />
           <AppButton variant="secondary" icon={<Download size={14} />} style={{ marginTop: 4 }}>
             Exportar estructura para SAP (.CSV)
@@ -1173,18 +1495,95 @@ function AduanaTab({ carpeta, subs, editable, hideImportes }: any) {
         </div>
       </Card>
       </div>
+      {showEditModal && (
+        <TabEditModal title={`Editar aduana · ${sub.numero}`} onClose={() => setShowEditModal(false)} onSave={saveAduana}>
+          <FormField label="Despachante aduanero">
+            <select value={form.despachante} onChange={event => setForm(prev => ({ ...prev, despachante: event.target.value }))} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }}>
+              <option value="">Seleccionar despachante...</option>
+              {DESPACHANTES.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+            </select>
+          </FormField>
+          <FormField label="N° Declaración Detallada (DUA)">
+            <input value={form.duaNum} onChange={event => setForm(prev => ({ ...prev, duaNum: event.target.value }))} placeholder="26001-CUSBA-2026-XXXXXX" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+          </FormField>
+          <FormField label="Canal aduanero">
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(['Pendiente', 'Verde', 'Rojo'] as const).map(option => (
+                <AppButton key={option} type="button" size="sm" variant={form.canalAduana === option ? (option === 'Rojo' ? 'danger-soft' : option === 'Verde' ? 'success-soft' : 'secondary') : 'secondary'} onClick={() => setForm(prev => ({ ...prev, canalAduana: option }))}>
+                  {option}
+                </AppButton>
+              ))}
+            </div>
+          </FormField>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormField label="Despacho / ZFI / ZFE">
+              <select value={form.despachoTipo} onChange={event => setForm(prev => ({ ...prev, despachoTipo: event.target.value }))} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }}>
+                <option value="">Seleccionar...</option>
+                {DESPACHO_TIPO_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Tx.55 — En tránsito">
+              <input value={form.pedidoSAP55} onChange={event => setForm(prev => ({ ...prev, pedidoSAP55: event.target.value }))} placeholder="5500009321" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+            </FormField>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormField label="Monto gastos AR$">
+              <input type="number" value={form.gastosARS} onChange={event => setForm(prev => ({ ...prev, gastosARS: event.target.value }))} placeholder="0" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+            </FormField>
+            <FormField label="Monto VEP USD">
+              <input type="number" value={form.vepUSD} onChange={event => setForm(prev => ({ ...prev, vepUSD: event.target.value }))} placeholder="0" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+            </FormField>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <FormField label="Fecha oficialización">
+              <input type="date" value={form.fechaOficializacion} onChange={event => setForm(prev => ({ ...prev, fechaOficializacion: event.target.value }))} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+            </FormField>
+            <FormField label="Fecha salida puerto / frontera">
+              <input type="date" value={form.fechaSalidaPuerto} onChange={event => setForm(prev => ({ ...prev, fechaSalidaPuerto: event.target.value }))} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+            </FormField>
+          </div>
+        </TabEditModal>
+      )}
     </div>
   );
 }
 
-function CosteoTab({ carpeta, editable }: any) {
+function CosteoTab({ carpeta, editable, onUpdateCosteo }: any) {
   const isMobile = useIsMobile();
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [form, setForm] = useState({
+    coeficienteReal: carpeta.coeficienteReal?.toString() || '',
+    observaciones: carpeta.observaciones || '',
+  });
   const desv = carpeta.coeficienteReal ? carpeta.coeficienteReal - carpeta.coeficienteEst : null;
   const desvPct = desv ? (desv / carpeta.coeficienteEst) * 100 : null;
   const alertColor = desvPct !== null && Math.abs(desvPct) > 5 ? '#b84800' : '#1a7a4a';
 
+  useEffect(() => {
+    setForm({
+      coeficienteReal: carpeta.coeficienteReal?.toString() || '',
+      observaciones: carpeta.observaciones || '',
+    });
+  }, [carpeta.coeficienteReal, carpeta.observaciones]);
+
+  const saveCosteo = () => {
+    onUpdateCosteo({
+      coeficienteReal: form.coeficienteReal ? Number(form.coeficienteReal) : null,
+      observaciones: form.observaciones.trim(),
+    });
+    setShowEditModal(false);
+  };
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 1, alignItems: 'stretch', background: HAIRLINE }}>
+    <>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '16px 16px 12px' }}>
+      {editable && (
+        <AppButton type="button" size="sm" icon={<Pencil size={13} />} onClick={() => setShowEditModal(true)}>
+          Editar sección
+        </AppButton>
+      )}
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, minmax(0, 1fr))', gap: 12, alignItems: 'stretch' }}>
       <Card title="Coeficiente de Costo">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={{ padding: '20px', background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 14 }}>
@@ -1193,10 +1592,7 @@ function CosteoTab({ carpeta, editable }: any) {
           </div>
           <div style={{ padding: '20px', background: carpeta.coeficienteReal ? `${alertColor}0d` : PARCHMENT, border: `1px solid ${carpeta.coeficienteReal ? alertColor + '33' : HAIRLINE}`, borderRadius: 14 }}>
             <div style={{ fontSize: 12, color: MUTED, marginBottom: 8 }}>REAL</div>
-            {editable
-              ? <input type="number" step="0.01" defaultValue={carpeta.coeficienteReal || ''} placeholder="0.00" style={{ fontSize: 34, fontWeight: 600, color: alertColor, background: 'transparent', border: 'none', outline: 'none', width: '100%', letterSpacing: '-0.374px' }} />
-              : <div style={{ fontSize: 34, fontWeight: 600, color: carpeta.coeficienteReal ? alertColor : MUTED, letterSpacing: '-0.374px' }}>{carpeta.coeficienteReal?.toFixed(2) || '—'}</div>
-            }
+            <div style={{ fontSize: 34, fontWeight: 600, color: carpeta.coeficienteReal ? alertColor : MUTED, letterSpacing: '-0.374px' }}>{carpeta.coeficienteReal?.toFixed(2) || '—'}</div>
           </div>
         </div>
         {desvPct !== null && (
@@ -1231,19 +1627,207 @@ function CosteoTab({ carpeta, editable }: any) {
 
       <Card title="Observaciones de Costeo">
         <div>
-          {editable
-            ? <textarea
-                defaultValue={carpeta.observaciones}
-                rows={4}
-                placeholder="Notas sobre el costeo, desvíos, ajustes..."
-                style={{ width: '100%', padding: '12px 14px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 14, outline: 'none', resize: 'none', lineHeight: 1.5 }}
-              />
-            : <div style={{ fontSize: 15, color: carpeta.observaciones ? INK : MUTED, lineHeight: 1.6 }}>
-                {carpeta.observaciones || 'Sin observaciones.'}
-              </div>
-          }
+          <div style={{ fontSize: 15, color: carpeta.observaciones ? INK : MUTED, lineHeight: 1.6 }}>
+            {carpeta.observaciones || 'Sin observaciones.'}
+          </div>
         </div>
       </Card>
+    </div>
+    {showEditModal && (
+      <TabEditModal title="Editar costeo" onClose={() => setShowEditModal(false)} onSave={saveCosteo}>
+        <FormField label="Coeficiente real">
+          <input type="number" step="0.01" value={form.coeficienteReal} onChange={event => setForm(prev => ({ ...prev, coeficienteReal: event.target.value }))} placeholder="0.00" style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+        </FormField>
+        <FormField label="Observaciones de costeo">
+          <textarea value={form.observaciones} onChange={event => setForm(prev => ({ ...prev, observaciones: event.target.value }))} rows={5} placeholder="Notas sobre el costeo, desvíos o warnings" style={{ width: '100%', padding: '10px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none', resize: 'vertical', lineHeight: 1.5 }} />
+        </FormField>
+      </TabEditModal>
+    )}
+    </>
+  );
+}
+
+/* ── Pagos Tab ─────────────────────────────────────────────────────── */
+
+function PagosTab({ carpeta, editable }: { carpeta: Carpeta; editable: boolean }) {
+  const isMobile = useIsMobile();
+  const [fondosDisponibles] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPagoId, setSelectedPagoId] = useState<string | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ fechaPago: '', montoPago: '' });
+
+  const initialPagos = [
+    { id: '1', concepto: 'Factura Proveedor Exterior', monto: carpeta.montoTotal * 0.5, moneda: carpeta.moneda, vencimiento: '2026-04-10', estado: 'Pagado' },
+    { id: '2', concepto: 'Factura Proveedor Exterior (saldo)', monto: carpeta.montoTotal * 0.5, moneda: carpeta.moneda, vencimiento: '2026-05-10', estado: 'Pendiente' },
+    { id: '3', concepto: 'Flete Internacional', monto: 3200, moneda: 'USD', vencimiento: '2026-04-25', estado: 'Pagado' },
+    { id: '4', concepto: 'Impuestos AFIP / VEP', monto: carpeta.vep, moneda: 'ARS', vencimiento: '2026-05-28', estado: 'Pendiente' },
+    { id: '5', concepto: 'Gastos Terminal', monto: carpeta.gastosTerminal, moneda: 'ARS', vencimiento: '2026-06-01', estado: 'Pendiente' },
+  ];
+  const [pagos, setPagos] = useState(initialPagos);
+
+  useEffect(() => {
+    setPagos(initialPagos);
+    setShowPaymentModal(false);
+    setSelectedPagoId(null);
+    setPaymentForm({ fechaPago: '', montoPago: '' });
+  }, [carpeta.id, carpeta.montoTotal, carpeta.moneda, carpeta.vep, carpeta.gastosTerminal]);
+
+  const selectedPago = pagos.find(pago => pago.id === selectedPagoId) ?? null;
+  const openPaymentModal = (pagoId: string) => {
+    const pago = pagos.find(item => item.id === pagoId);
+    if (!pago) return;
+    setSelectedPagoId(pago.id);
+    setPaymentForm({ fechaPago: pago.vencimiento, montoPago: String(pago.monto) });
+    setShowPaymentModal(true);
+  };
+
+  const confirmPayment = () => {
+    if (!selectedPago) return;
+    setPagos(current => current.map(pago => pago.id === selectedPago.id ? ({ ...pago, estado: 'Pagado', fechaPago: paymentForm.fechaPago, montoPago: Number(paymentForm.montoPago || pago.monto) }) : pago));
+    setShowPaymentModal(false);
+    setSelectedPagoId(null);
+  };
+
+  const totalPendiente = pagos.filter(p => p.estado === 'Pendiente').reduce((acc, p) => acc + p.monto, 0);
+  const totalPagado = pagos.filter(p => p.estado === 'Pagado').reduce((acc, p) => acc + p.monto, 0);
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      {/* Fondos disponibles alert */}
+      <Card title="Estado de Fondos">
+        <div style={{
+          padding: '14px 16px',
+          background: fondosDisponibles ? 'rgba(26,122,74,0.06)' : 'rgba(180,35,24,0.06)',
+          border: `1px solid ${fondosDisponibles ? 'rgba(26,122,74,0.2)' : 'rgba(180,35,24,0.2)'}`,
+          borderRadius: 12,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: fondosDisponibles ? 'rgba(26,122,74,0.12)' : 'rgba(180,35,24,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {fondosDisponibles
+              ? <CheckCircle size={18} color="#1a7a4a" />
+              : <AlertTriangle size={18} color="#b42318" />
+            }
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: fondosDisponibles ? '#1a7a4a' : '#b42318' }}>
+              {fondosDisponibles ? 'Hay fondos disponibles' : 'Sin fondos suficientes'}
+            </div>
+            <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>
+              {fondosDisponibles
+                ? 'Los pagos pendientes están cubiertos por la proyección actual.'
+                : 'Se requiere gestión de Tesorería para cubrir los pagos próximos.'}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Summary */}
+      <Card title="Resumen de pagos">
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+          <div style={{ padding: 16, background: PARCHMENT, borderRadius: 12, border: `1px solid ${HAIRLINE}` }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Pagado</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#1a7a4a', marginTop: 6 }}>
+              {carpeta.moneda} {totalPagado.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            </div>
+          </div>
+          <div style={{ padding: 16, background: PARCHMENT, borderRadius: 12, border: `1px solid ${HAIRLINE}` }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Pendiente</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: '#b45309', marginTop: 6 }}>
+              {carpeta.moneda} {totalPendiente.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+            </div>
+          </div>
+          <div style={{ padding: 16, background: PARCHMENT, borderRadius: 12, border: `1px solid ${HAIRLINE}` }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Condición de Pago</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginTop: 6 }}>{carpeta.condPago}</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Pagos table */}
+      <Card title="Detalle de Pagos">
+        {isMobile ? (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {pagos.map(pago => (
+              <div key={pago.id} style={{ padding: '12px 14px', background: PARCHMENT, borderRadius: 10, border: `1px solid ${HAIRLINE}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: INK }}>{pago.concepto}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 9999,
+                    background: pago.estado === 'Pagado' ? 'rgba(26,122,74,0.1)' : 'rgba(180,83,9,0.1)',
+                    color: pago.estado === 'Pagado' ? '#1a7a4a' : '#b45309',
+                  }}>{pago.estado}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: MUTED }}>
+                  <span>Venc: {pago.vencimiento}</span>
+                  <span style={{ fontWeight: 600, color: INK }}>{pago.moneda} {pago.monto.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>
+                </div>
+                {editable && pago.estado === 'Pendiente' && (
+                  <div style={{ marginTop: 10 }}>
+                    <AppButton type="button" size="xs" onClick={() => openPaymentModal(pago.id)}>
+                      Confirmar pago
+                    </AppButton>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ border: `1px solid ${HAIRLINE}`, borderRadius: 14, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#fafbfd', borderBottom: `1px solid ${HAIRLINE}` }}>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Concepto</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Vencimiento</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monto</th>
+                  <th style={{ padding: '10px 14px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Estado</th>
+                  {editable && <th style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Acción</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {pagos.map(pago => (
+                  <tr key={pago.id} style={{ borderBottom: `1px solid ${HAIRLINE}` }}>
+                    <td style={{ padding: '12px 14px', fontSize: 13, color: INK }}>{pago.concepto}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 13, color: MUTED }}>{pago.vencimiento}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 13, fontWeight: 500, color: INK, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{pago.moneda} {pago.monto.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999,
+                        background: pago.estado === 'Pagado' ? 'rgba(26,122,74,0.1)' : 'rgba(180,83,9,0.1)',
+                        color: pago.estado === 'Pagado' ? '#1a7a4a' : '#b45309',
+                      }}>{pago.estado}</span>
+                    </td>
+                    {editable && (
+                      <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                        {pago.estado === 'Pendiente' && (
+                          <AppButton type="button" size="xs" onClick={() => openPaymentModal(pago.id)}>
+                            Confirmar pago
+                          </AppButton>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+      {showPaymentModal && selectedPago && (
+        <TabEditModal title={`Confirmar pago · ${selectedPago.concepto}`} onClose={() => setShowPaymentModal(false)} onSave={confirmPayment} saveLabel="Registrar pago">
+          <FormField label="Fecha de pago real">
+            <input type="date" value={paymentForm.fechaPago} onChange={event => setPaymentForm(prev => ({ ...prev, fechaPago: event.target.value }))} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+          </FormField>
+          <FormField label="Monto pagado">
+            <input type="number" value={paymentForm.montoPago} onChange={event => setPaymentForm(prev => ({ ...prev, montoPago: event.target.value }))} style={{ width: '100%', minHeight: 40, padding: '9px 12px', fontSize: 14, color: INK, background: PARCHMENT, border: `1px solid ${HAIRLINE}`, borderRadius: 10, outline: 'none' }} />
+          </FormField>
+        </TabEditModal>
+      )}
     </div>
   );
 }

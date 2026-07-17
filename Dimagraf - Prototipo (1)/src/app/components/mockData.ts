@@ -4,7 +4,7 @@ export type CanalAduana = 'Verde' | 'Rojo' | 'Pendiente';
 export type MedioTransporte = 'Marítimo' | 'Terrestre' | 'Aéreo';
 export type TipoDocumento = 'Factura Comercial' | 'Bill of Lading / CRT' | 'Packing List' | 'Certificado de Origen';
 export type TipoIncidencia = 'Faltante de Producto' | 'Mercadería Dañada / Rota' | 'Error de SKU / Producto Equivocado';
-export type EstadoCarpeta = 'Activa' | 'En Tránsito' | 'En Aduana' | 'Oficializado' | 'Cerrada' | 'Con Incidencia';
+export type EstadoCarpeta = 'Pendiente de embarque' | 'En Tránsito' | 'Arribado Aduana' | 'Oficializado' | 'En Stock';
 export type TipoPago = 'Factura Proveedor Exterior' | 'Flete Internacional / Forwarder' | 'Impuestos AFIP / VEP' | 'Gastos de Terminal Portuaria';
 
 export interface Proveedor {
@@ -46,6 +46,7 @@ export interface Articulo {
 export interface Documento {
   id: string;
   nombre: string;
+  referencia?: string;
   tipo: TipoDocumento;
   tamano: string;
   fecha: string;
@@ -120,6 +121,7 @@ export interface Carpeta {
   honorariosDespachante: number;
   articulos: Articulo[];
   subcarpetas: Subcarpeta[];
+  documentos?: Documento[];
   ultimoHito: string;
   lastUpdate: string;
 }
@@ -161,7 +163,7 @@ export const CARPETAS: Carpeta[] = [
     pedidoSAP45: '4500012847',
     montoTotal: 142500,
     moneda: 'EUR',
-    estado: 'En Aduana',
+    estado: 'Arribado Aduana',
     incoterm: 'CIF',
     condPago: '60 días desde BL',
     referenciaProveedor: 'EPI-2026-DGF-ARG-437',
@@ -196,7 +198,7 @@ export const CARPETAS: Carpeta[] = [
         blCrtAwb: 'MSCUBU1234567',
         contenedores: 2,
         despachante: 'd1',
-        estado: 'En Aduana',
+        estado: 'Arribado Aduana',
         canalAduana: 'Verde',
         duaNum: '26001-CUSBA-2026-124753',
         eta: '2026-06-02',
@@ -287,7 +289,7 @@ export const CARPETAS: Carpeta[] = [
     pedidoSAP45: '4500013102',
     montoTotal: 98300,
     moneda: 'EUR',
-    estado: 'En Aduana',
+    estado: 'Arribado Aduana',
     incoterm: 'FOB',
     condPago: '90 días desde BL',
     referenciaProveedor: 'NEO-26-DGF-0441',
@@ -321,7 +323,7 @@ export const CARPETAS: Carpeta[] = [
         blCrtAwb: 'MAEU7483920165',
         contenedores: 1,
         despachante: 'd2',
-        estado: 'En Aduana',
+        estado: 'Arribado Aduana',
         canalAduana: 'Rojo',
         duaNum: '26001-CUSBA-2026-127891',
         eta: '2026-06-05',
@@ -349,7 +351,7 @@ export const CARPETAS: Carpeta[] = [
     pedidoSAP45: '4500013445',
     montoTotal: 62000,
     moneda: 'EUR',
-    estado: 'Activa',
+    estado: 'Pendiente de embarque',
     incoterm: 'CIF',
     condPago: '60 días desde BL',
     referenciaProveedor: 'RFG-2026-DGF-449',
@@ -440,7 +442,7 @@ export const CARPETAS: Carpeta[] = [
     pedidoSAP45: '4500014112',
     montoTotal: 18500,
     moneda: 'USD',
-    estado: 'Con Incidencia',
+    estado: 'En Stock',
     incoterm: 'DAP',
     condPago: '30 días desde CRT',
     referenciaProveedor: 'AIN-CH-2026-0461',
@@ -473,7 +475,7 @@ export const CARPETAS: Carpeta[] = [
         blCrtAwb: 'CRT-TAC-2026-0892',
         contenedores: 3,
         despachante: 'd2',
-        estado: 'Recibida con Incidencia',
+        estado: 'En Stock',
         canalAduana: 'Verde',
         duaNum: '26001-PASO-2026-009821',
         eta: '2026-05-12',
@@ -501,7 +503,7 @@ export const CARPETAS: Carpeta[] = [
     pedidoSAP45: '4500012301',
     montoTotal: 115000,
     moneda: 'EUR',
-    estado: 'Cerrada',
+    estado: 'En Stock',
     incoterm: 'CIF',
     condPago: '60 días desde BL',
     referenciaProveedor: 'EPI-2026-DGF-ARG-428',
@@ -535,7 +537,7 @@ export const CARPETAS: Carpeta[] = [
         blCrtAwb: 'EGLV112600143',
         contenedores: 3,
         despachante: 'd1',
-        estado: 'Cerrada',
+        estado: 'En Stock',
         canalAduana: 'Verde',
         duaNum: '26001-CUSBA-2026-119823',
         eta: '2026-04-15',
@@ -553,7 +555,7 @@ export const CARPETAS: Carpeta[] = [
   },
 ];
 
-const EXTRA_CARPETA_ESTADOS: EstadoCarpeta[] = ['Activa', 'En Tránsito', 'En Aduana', 'Oficializado', 'Cerrada'];
+const EXTRA_CARPETA_ESTADOS: EstadoCarpeta[] = ['Pendiente de embarque', 'En Tránsito', 'Arribado Aduana', 'Oficializado', 'En Stock'];
 const EXTRA_CARPETA_HITOS = [
   'OC emitida y pendiente de confirmación del proveedor',
   'Producción confirmada en origen',
@@ -568,7 +570,7 @@ CARPETAS.push(
     const estado = EXTRA_CARPETA_ESTADOS[index % EXTRA_CARPETA_ESTADOS.length];
     const sequence = 470 + index;
     const articleId = `a_extra_${index + 1}_1`;
-    const canalAduana: CanalAduana = estado === 'En Aduana' ? 'Pendiente' : estado === 'Cerrada' ? 'Verde' : 'Verde';
+    const canalAduana: CanalAduana = estado === 'Arribado Aduana' ? 'Pendiente' : 'Verde';
 
     return {
       id: `c_extra_${index + 1}`,
@@ -627,7 +629,7 @@ CARPETAS.push(
           articulosEmbarque: [{ articuloId: articleId, cantidad: 8000 + index * 450 }],
           incidencias: [],
           pedidoSAP55: `550001${String(100 + index).padStart(3, '0')}`,
-          ingresoSAP18: estado === 'Cerrada' ? `18260${String(500 + index).padStart(4, '0')}` : '',
+          ingresoSAP18: estado === 'En Stock' ? `18260${String(500 + index).padStart(4, '0')}` : '',
         },
       ],
       ultimoHito: EXTRA_CARPETA_HITOS[index % EXTRA_CARPETA_HITOS.length],
@@ -654,28 +656,37 @@ export function getDespachante(id: string): Despachante | undefined {
   return DESPACHANTES.find(d => d.id === id);
 }
 
+export function getEstadoTone(estado: EstadoCarpeta): 'warning' | 'violet' | 'info' | 'success' {
+  const map: Record<EstadoCarpeta, 'warning' | 'violet' | 'info' | 'success'> = {
+    'Pendiente de embarque': 'warning',
+    'En Tránsito': 'violet',
+    'Arribado Aduana': 'info',
+    'Oficializado': 'success',
+    'En Stock': 'success',
+  };
+  return map[estado] || 'success';
+}
+
 export function getEstadoColor(estado: EstadoCarpeta): string {
   const map: Record<EstadoCarpeta, string> = {
-    'Activa':        '#1a5c38',
-    'En Tránsito':   '#5e5ce6',
-    'En Aduana':     '#b45309',
-    'Oficializado':  '#1a7a4a',
-    'Cerrada':       '#6e6e73',
-    'Con Incidencia':'#b84800',
+    'Pendiente de embarque': '#b45309',
+    'En Tránsito':   '#5b21b6',
+    'Arribado Aduana': '#0066cc',
+    'Oficializado':  '#1a5c38',
+    'En Stock':      '#1a7a4a',
   };
-  return map[estado] || '#6e6e73';
+  return map[estado] || '#1a7a4a';
 }
 
 export function getEstadoBg(estado: EstadoCarpeta): string {
   const map: Record<EstadoCarpeta, string> = {
-    'Activa':        'rgba(26,92,56,0.08)',
-    'En Tránsito':   'rgba(94,92,230,0.08)',
-    'En Aduana':     'rgba(180,83,9,0.08)',
-    'Oficializado':  'rgba(26,122,74,0.08)',
-    'Cerrada':       'rgba(110,110,115,0.08)',
-    'Con Incidencia':'rgba(184,72,0,0.08)',
+    'Pendiente de embarque': 'rgba(180,83,9,0.08)',
+    'En Tránsito':   'rgba(91,33,182,0.08)',
+    'Arribado Aduana': 'rgba(0,102,204,0.08)',
+    'Oficializado':  'rgba(26,92,56,0.08)',
+    'En Stock':      'rgba(26,122,74,0.08)',
   };
-  return map[estado] || 'rgba(110,110,115,0.08)';
+  return map[estado] || 'rgba(26,122,74,0.08)';
 }
 
 // ─── Admin / Notifications / Audit ────────────────────────────────────────
@@ -751,7 +762,7 @@ export const USERS: AppUser[] = [
 
 export const AUDIT_LOG: AuditEntry[] = [
   { id: 'al1',  timestamp: '2026-06-03T09:14:22', userId: 'u2', userName: 'Marcos Delgado',    userRole: 'operator',   action: 'Creó embarque parcial',          entity: 'Subcarpeta',     entityId: '2026/461-A', detail: 'Nueva subcarpeta creada en carpeta 2026/461' },
-  { id: 'al2',  timestamp: '2026-06-03T08:55:10', userId: 'u2', userName: 'Marcos Delgado',    userRole: 'operator',   action: 'Cambió estado de carpeta',        entity: 'Carpeta',        entityId: '2026/449',   detail: 'Estado: Activa → En Tránsito' },
+  { id: 'al2',  timestamp: '2026-06-03T08:55:10', userId: 'u2', userName: 'Marcos Delgado',    userRole: 'operator',   action: 'Cambió estado de carpeta',        entity: 'Carpeta',        entityId: '2026/449',   detail: 'Estado: Pendiente de embarque → En Tránsito' },
   { id: 'al3',  timestamp: '2026-06-02T17:30:45', userId: 'u5', userName: 'Patricia Ibáñez',   userRole: 'treasury',   action: 'Marcó transferencia emitida',     entity: 'Pago',           entityId: 'op2',        detail: 'TRF-20260528-0041 · EUR 3.200' },
   { id: 'al4',  timestamp: '2026-06-02T14:05:33', userId: 'u6', userName: 'Javier Ortega',     userRole: 'warehouse',  action: 'Registró incidencia',             entity: 'Subcarpeta',     entityId: '2026/437-A', detail: 'Faltante de Producto · 500 Kg' },
   { id: 'al5',  timestamp: '2026-06-02T11:48:17', userId: 'u2', userName: 'Marcos Delgado',    userRole: 'operator',   action: 'Cargó documento',                 entity: 'Subcarpeta',     entityId: '2026/441-A', detail: 'PackingList_NEO-2026-0311.pdf · 0.7 MB' },

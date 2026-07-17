@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { ArrowLeft, Edit2, Check, X, ChevronRight, FolderOpen, ShieldCheck, ShieldAlert, DatabaseZap } from 'lucide-react';
 import { fieldLabel, formInput, getModalPrimaryButtonStyle, getModalSecondaryButtonStyle, getModalShellStyle, getSearchWrapStyle, modalBody, modalCloseButton, modalFooter, modalHeader, modalOverlay, pageShell, tableHeadCell, tableHeadRow, tableShell } from './chromeStyles';
 import { MetricCardGrid } from './MetricCardGrid';
-import { PROVEEDORES, getEstadoColor, type Carpeta, type Subcarpeta, type DespachoTipo } from './mockData';
-import { CanalBadge, NeonBadge } from './NeonBadge';
+import { PROVEEDORES, type Carpeta, type Subcarpeta, type DespachoTipo } from './mockData';
+import { CanalBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
 import { TransportModeIcon } from './TransportModeIcon';
 import { SearchField, normalizeSearchTerm } from './SearchField';
@@ -186,7 +186,6 @@ function DetailView({ carpeta, dispatcherMap, onSave, onBack, isMobile }: Detail
           <h1 style={{ margin: 0, color: INK }}>{carpeta.numero}</h1>
           <p style={{ margin: '4px 0 0', fontSize: 15, color: MUTED, fontWeight: 400 }}>{prov?.nombre} · {prov?.pais}</p>
         </div>
-        <NeonBadge estado={carpeta.estado} size="sm" />
       </div>
 
       {/* Subcarpetas */}
@@ -329,7 +328,7 @@ export function DispatcherDashboard({ carpetasList }: Props) {
   const isMobile = useIsMobile();
 
   const activeCarpetas = carpetasList.filter(c =>
-    c.estado === 'En Aduana' || c.estado === 'En Tránsito' || c.estado === 'Oficializado' || c.estado === 'Con Incidencia'
+    c.subcarpetas.some(sub => sub.estado === 'Arribado Aduana' || sub.estado === 'En Tránsito' || sub.estado === 'Oficializado')
   );
 
   const filtered = activeCarpetas.filter(c => {
@@ -412,7 +411,6 @@ export function DispatcherDashboard({ carpetasList }: Props) {
                     </div>
                     <ChevronRight size={16} color={HAIRLINE} />
                   </div>
-                  <div style={{ marginTop: 10 }}><NeonBadge estado={c.estado} size="sm" /></div>
                   <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
                     <div>
                       <div style={{ fontSize: 10, fontWeight: 700, color: MUTED, letterSpacing: '0.04em' }}>EMBARQUES</div>
@@ -443,7 +441,7 @@ export function DispatcherDashboard({ carpetasList }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={tableHeadRow}>
-                {['CARPETA', 'PROVEEDOR', 'ESTADO', 'EMBARQUES', 'CANAL RESUMEN', 'ÚLTIMO HITO', ''].map(col => (
+                {['CARPETA', 'PROVEEDOR', 'EMBARQUES', 'CANAL RESUMEN', 'ÚLTIMO HITO', ''].map(col => (
                   <th key={col} style={tableHeadCell}>{col}</th>
                 ))}
               </tr>
@@ -476,7 +474,6 @@ export function DispatcherDashboard({ carpetasList }: Props) {
                       <div style={{ fontSize: 13, color: INK }}>{prov?.nombre || '—'}</div>
                       <div style={{ fontSize: 12, color: MUTED }}>{prov?.pais}</div>
                     </td>
-                    <td style={{ padding: '14px 16px' }}><NeonBadge estado={c.estado} size="sm" /></td>
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: INK }}>{subs.length}</div>
                       <div style={{ fontSize: 12, color: MUTED }}>{cargados}/{subs.length} con datos</div>

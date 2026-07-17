@@ -32,8 +32,11 @@ const swatches = [
   ['violet', color.violet],
   ['ink', color.ink],
   ['muted', color.muted],
+  ['mintWash', color.mintWash],
   ['surface', color.surface],
   ['hairline', color.hairline],
+  ['borderTint', color.borderTint],
+  ['borderTintSoft', color.borderTintSoft],
   ['success', color.success],
   ['warning', color.warning],
   ['danger', color.danger],
@@ -97,13 +100,13 @@ type DemoRow = {
   id: string;
   carpeta: string;
   proveedor: string;
-  estado: 'Activa' | 'En Transito' | 'Observada';
+  estado: 'Pendiente de embarque' | 'En Tránsito' | 'Arribado Aduana';
 };
 
 const rows: DemoRow[] = [
-  { id: '1', carpeta: 'DIM-2026-041', proveedor: 'Europacel Iberica', estado: 'Activa' },
-  { id: '2', carpeta: 'DIM-2026-038', proveedor: 'UPM Sales', estado: 'En Transito' },
-  { id: '3', carpeta: 'DIM-2026-029', proveedor: 'Lecta Paper', estado: 'Observada' },
+  { id: '1', carpeta: 'DIM-2026-041', proveedor: 'Europacel Iberica', estado: 'Pendiente de embarque' },
+  { id: '2', carpeta: 'DIM-2026-038', proveedor: 'UPM Sales', estado: 'En Tránsito' },
+  { id: '3', carpeta: 'DIM-2026-029', proveedor: 'Lecta Paper', estado: 'Arribado Aduana' },
 ];
 
 const columns: DataColumn<DemoRow>[] = [
@@ -113,7 +116,7 @@ const columns: DataColumn<DemoRow>[] = [
     key: 'estado',
     header: 'Estado',
     cell: row => (
-      <StatusBadge tone={row.estado === 'Activa' ? 'success' : row.estado === 'En Transito' ? 'violet' : 'warning'} dot>
+      <StatusBadge tone={row.estado === 'Pendiente de embarque' ? 'warning' : row.estado === 'En Tránsito' ? 'violet' : 'info'} dot>
         {row.estado}
       </StatusBadge>
     ),
@@ -145,7 +148,7 @@ function Demo({ title, children }: { title: string; children: React.ReactNode })
 export function DesignSystemPage() {
   const [search, setSearch] = useState('');
   const [filterExpanded, setFilterExpanded] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'todos' | 'activas' | 'transito' | 'observadas'>('todos');
+  const [statusFilter, setStatusFilter] = useState<'todos' | 'pendientes' | 'transito' | 'aduana'>('todos');
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -153,16 +156,16 @@ export function DesignSystemPage() {
     const q = normalizeSearchTerm(search);
     return rows.filter(row => {
       const statusOk = statusFilter === 'todos'
-        || (statusFilter === 'activas' && row.estado === 'Activa')
-        || (statusFilter === 'transito' && row.estado === 'En Transito')
-        || (statusFilter === 'observadas' && row.estado === 'Observada');
+        || (statusFilter === 'pendientes' && row.estado === 'Pendiente de embarque')
+        || (statusFilter === 'transito' && row.estado === 'En Tránsito')
+        || (statusFilter === 'aduana' && row.estado === 'Arribado Aduana');
       const textOk = normalizeSearchTerm(`${row.carpeta} ${row.proveedor} ${row.estado}`).includes(q);
       return statusOk && textOk;
     });
   }, [search, statusFilter]);
 
   return (
-    <div style={{ minHeight: '100%', background: '#f8fafc', color: color.ink }}>
+    <div style={{ minHeight: '100%', background: color.mintWash, color: color.ink }}>
       <div style={{ maxWidth: 1140, margin: '0 auto', padding: '40px 28px 80px' }}>
         <header style={{ marginBottom: 30 }}>
           <StatusBadge tone="brand" size="sm">Design System Visual</StatusBadge>
@@ -215,7 +218,7 @@ export function DesignSystemPage() {
           </div>
         </Section>
 
-        <Section id="foundations" title="Fundaciones" description="Tokens compartidos de color, radios y elevacion.">
+        <Section id="foundations" title="Fundaciones" description="Tokens compartidos de color, radios, elevacion y el nuevo tratamiento de fondo menta con bordes verdes suaves.">
           <Demo title="Paleta semantica">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
               {swatches.map(([name, value]) => (
@@ -277,9 +280,9 @@ export function DesignSystemPage() {
                 searchPlaceholder="Buscar en tabla..."
                 options={[
                   { value: 'todos', label: 'Todos', count: rows.length },
-                  { value: 'activas', label: 'Activas', count: rows.filter(row => row.estado === 'Activa').length },
-                  { value: 'transito', label: 'En transito', count: rows.filter(row => row.estado === 'En Transito').length },
-                  { value: 'observadas', label: 'Observadas', count: rows.filter(row => row.estado === 'Observada').length },
+                  { value: 'pendientes', label: 'Pendiente de embarque', count: rows.filter(row => row.estado === 'Pendiente de embarque').length },
+                  { value: 'transito', label: 'En tránsito', count: rows.filter(row => row.estado === 'En Tránsito').length },
+                  { value: 'aduana', label: 'Arribado aduana', count: rows.filter(row => row.estado === 'Arribado Aduana').length },
                 ] as const}
                 value={statusFilter}
                 onValueChange={setStatusFilter}
@@ -312,8 +315,9 @@ export function DesignSystemPage() {
                 <StatusBadge tone="danger" dot>Danger</StatusBadge>
                 <StatusBadge tone="info" dot>Info</StatusBadge>
                 <StatusBadge tone="violet" dot>Violet</StatusBadge>
-                <NeonBadge estado="Activa" />
+                <NeonBadge estado="Pendiente de embarque" />
                 <NeonBadge estado="En Tránsito" />
+                <NeonBadge estado="Arribado Aduana" />
                 <CanalBadge canal="Rojo" />
               </div>
             </Demo>

@@ -1,4 +1,4 @@
-import type { EstadoCarpeta, CanalAduana } from './mockData';
+import { getEstadoTone, type EstadoCarpeta, type CanalAduana } from './mockData';
 import { StatusBadge } from './StatusBadge';
 
 interface NeonBadgeProps {
@@ -7,7 +7,7 @@ interface NeonBadgeProps {
 }
 
 export function NeonBadge({ estado, size = 'md' }: NeonBadgeProps) {
-  const tone = estado === 'Cerrada' ? 'neutral' : estado === 'En Tránsito' ? 'violet' : estado === 'En Aduana' ? 'info' : estado === 'Activa' ? 'warning' : 'success';
+  const tone = getEstadoTone(estado);
   return <StatusBadge tone={tone} size={size} dot>{estado}</StatusBadge>;
 }
 

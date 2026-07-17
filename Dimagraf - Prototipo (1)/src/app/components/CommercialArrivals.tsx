@@ -8,6 +8,7 @@ import { TransportModeIcon } from './TransportModeIcon';
 import { normalizeSearchTerm } from './SearchField';
 import { color } from './theme';
 import { FilterToolbar } from './FilterToolbar';
+import { WelcomeBanner } from './WelcomeBanner';
 import { AppButton } from './AppButton';
 
 const INK = color.ink;
@@ -29,7 +30,7 @@ function buildArrivals(): ArrivalRow[] {
   for (const carpeta of CARPETAS) {
     const prov = PROVEEDORES.find(p => p.id === carpeta.proveedorId);
     for (const sub of carpeta.subcarpetas) {
-      if (sub.estado === 'Cerrada' || sub.estado === 'Recibida') continue;
+      if (sub.estado === 'En Stock' || sub.estado === 'Recibida') continue;
       for (const ae of sub.articulosEmbarque) {
         const art = carpeta.articulos.find(a => a.id === ae.articuloId);
         if (!art) continue;
@@ -60,17 +61,11 @@ export function CommercialArrivals() {
     <div style={pageShell}>
 
       {/* ── Page header ───────────────────────────────────────── */}
-      <div style={{ ...pageHeader, alignItems: 'flex-start', marginBottom: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, color: INK }}>Matriz de Arrivals</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 15, color: MUTED, fontWeight: 400 }}>Cargas entrantes · Solo lectura · Sin datos de costos</p>
-        </div>
-        <div style={pageActions}>
-          <AppButton style={{ flexShrink: 0 }} icon={<Download size={14} />}>
-            Exportar (.xlsx)
-          </AppButton>
-        </div>
-      </div>
+      <WelcomeBanner
+        title="Arrivals"
+        subtitle="Cargas entrantes · Solo lectura"
+        actions={<AppButton style={{ flexShrink: 0 }} icon={<Download size={14} />}>Exportar (.xlsx)</AppButton>}
+      />
 
       {/* ── KPI strip ────────────────────────────────────────── */}
       <MetricCardGrid

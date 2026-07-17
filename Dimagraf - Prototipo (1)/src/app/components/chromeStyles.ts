@@ -1,12 +1,12 @@
 import type { CSSProperties } from 'react';
-import { color } from './theme';
+import { color, radius } from './theme';
 
-const { ink: INK, muted: MUTED, hairline: HAIRLINE, parchment: PARCHMENT, surface: SURFACE, brand: GREEN, canvas: CANVAS } = color;
+const { ink: INK, muted: MUTED, hairline: HAIRLINE, parchment: PARCHMENT, surface: SURFACE, brand: GREEN, canvas: CANVAS, borderTint: BORDER_TINT, borderTintSoft: BORDER_TINT_SOFT } = color;
 
 export const pageShell: CSSProperties = {
   maxWidth: 1380,
   margin: '0 auto',
-  padding: 'clamp(20px, 4vw, 48px) clamp(14px, 3vw, 32px) clamp(28px, 5vw, 56px)',
+  padding: 'clamp(16px, 2.5vw, 28px) clamp(14px, 3vw, 32px) clamp(24px, 4vw, 40px)',
 };
 
 export const pageHeader: CSSProperties = {
@@ -25,8 +25,8 @@ export const toolbarSurface: CSSProperties = {
   flexWrap: 'wrap',
   padding: 'clamp(6px, 1.6vw, 8px) clamp(8px, 2vw, 10px)',
   background: SURFACE,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: 9999,
+  border: `1px solid ${BORDER_TINT}`,
+  borderRadius: radius.lg,
   boxShadow: '0 2px 10px rgba(16,24,40,0.04)',
 };
 
@@ -36,8 +36,8 @@ export const segmentedControl: CSSProperties = {
   gap: 4,
   padding: 4,
   background: PARCHMENT,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: 9999,
+  border: `1px solid ${BORDER_TINT_SOFT}`,
+  borderRadius: radius.lg,
 };
 
 export const searchWrap: CSSProperties = {
@@ -62,8 +62,8 @@ export const filterGroup: CSSProperties = {
   maxWidth: '100%',
   padding: 3,
   background: CANVAS,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: 12,
+  border: `1px solid ${BORDER_TINT}`,
+  borderRadius: radius.md,
   overflowX: 'auto',
   overflowY: 'hidden',
 };
@@ -73,9 +73,9 @@ export const searchInput: CSSProperties = {
   padding: '10px 12px 10px 36px',
   fontSize: 13,
   color: INK,
-  background: SURFACE,
+  background: CANVAS,
   border: `1px solid ${HAIRLINE}`,
-  borderRadius: 18,
+  borderRadius: 9999,
   outline: 'none',
   boxShadow: '0 1px 4px rgba(16,24,40,0.04)',
 };
@@ -88,14 +88,14 @@ export const filtersSurface: CSSProperties = {
   marginBottom: 'clamp(14px, 2.4vw, 20px)',
   padding: 'clamp(10px, 2vw, 12px) clamp(10px, 2.4vw, 14px)',
   background: SURFACE,
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: 22,
+  border: `1px solid ${BORDER_TINT}`,
+  borderRadius: radius.lg,
   boxShadow: '0 3px 12px rgba(16,24,40,0.04)',
 };
 
 export const tableShell: CSSProperties = {
-  border: `1px solid ${HAIRLINE}`,
-  borderRadius: 24,
+  border: `1px solid ${BORDER_TINT}`,
+  borderRadius: radius.lg,
   overflow: 'hidden',
   background: SURFACE,
   boxShadow: '0 4px 14px rgba(16,24,40,0.04)',
@@ -108,8 +108,8 @@ export const tableScrollArea: CSSProperties = {
 };
 
 export const tableHeadRow: CSSProperties = {
-  background: '#fafbfd',
-  borderBottom: `1px solid ${HAIRLINE}`,
+  background: '#fafefd',
+  borderBottom: `1px solid ${BORDER_TINT_SOFT}`,
 };
 
 export const tableHeadCell: CSSProperties = {
@@ -170,7 +170,7 @@ export const formInput: CSSProperties = {
   color: INK,
   background: SURFACE,
   border: `1px solid ${HAIRLINE}`,
-  borderRadius: 18,
+  borderRadius: radius.md,
   outline: 'none',
   boxShadow: '0 1px 4px rgba(16,24,40,0.04)',
 };
@@ -197,7 +197,7 @@ export const modalCloseButton: CSSProperties = {
 export function getModalShellStyle(maxWidth = 520): CSSProperties {
   return {
     background: CANVAS,
-    borderRadius: 28,
+    borderRadius: radius.modal,
     width: '100%',
     maxWidth,
     margin: '0 16px',
@@ -238,7 +238,7 @@ export function getPrimaryButtonStyle(): CSSProperties {
     padding: '10px 16px',
     background: GREEN,
     color: '#ffffff',
-    border: 'none',
+    border: `1px solid ${GREEN}`,
     borderRadius: 9999,
     fontSize: 13,
     fontWeight: 600,
@@ -255,7 +255,7 @@ export function getSecondaryButtonStyle(): CSSProperties {
     padding: '10px 14px',
     background: SURFACE,
     color: MUTED,
-    border: `1px solid ${HAIRLINE}`,
+    border: `1px solid ${BORDER_TINT}`,
     borderRadius: 9999,
     fontSize: 13,
     fontWeight: 500,
@@ -272,7 +272,7 @@ export function getSegmentButtonStyle(active: boolean): CSSProperties {
     fontWeight: active ? 600 : 500,
     color: active ? GREEN : MUTED,
     background: active ? CANVAS : 'transparent',
-    border: 'none',
+    border: active ? `1px solid ${BORDER_TINT_SOFT}` : '1px solid transparent',
     cursor: 'pointer',
     boxShadow: active ? '0 1px 4px rgba(16,24,40,0.04)' : 'none',
   };
@@ -280,17 +280,18 @@ export function getSegmentButtonStyle(active: boolean): CSSProperties {
 
 export function getFilterChipStyle(active: boolean, activeColor = GREEN): CSSProperties {
   return {
-    minHeight: 34,
-    padding: '7px 11px',
+    minHeight: 32,
+    padding: '6px 12px',
     fontSize: 12,
-    fontWeight: active ? 700 : 500,
-    borderRadius: 9,
-    color: active ? activeColor : MUTED,
-    background: active ? `${activeColor}12` : 'transparent',
-    border: 'none',
+    fontWeight: active ? 600 : 500,
+    borderRadius: 9999,
+    color: active ? activeColor : INK,
+    background: active ? `${activeColor}0a` : CANVAS,
+    border: `1px solid ${active ? activeColor : BORDER_TINT_SOFT}`,
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     flexShrink: 0,
+    transition: 'all 0.15s ease',
   };
 }
 
@@ -300,7 +301,7 @@ export function getModalPrimaryButtonStyle(enabled = true): CSSProperties {
     padding: '12px 14px',
     background: enabled ? GREEN : HAIRLINE,
     color: enabled ? '#ffffff' : MUTED,
-    border: 'none',
+    border: `1px solid ${enabled ? GREEN : HAIRLINE}`,
     borderRadius: 9999,
     fontSize: 14,
     fontWeight: 600,
@@ -315,7 +316,7 @@ export function getModalSecondaryButtonStyle(): CSSProperties {
     padding: '12px 14px',
     background: SURFACE,
     color: MUTED,
-    border: `1px solid ${HAIRLINE}`,
+    border: `1px solid ${BORDER_TINT}`,
     borderRadius: 9999,
     fontSize: 14,
     fontWeight: 500,

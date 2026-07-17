@@ -8,9 +8,9 @@ type ExtendedVariant = Variant | 'tertiary';
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> { variant?: ExtendedVariant; size?: Size; icon?: ReactNode; }
 
 const variants: Record<ExtendedVariant, CSSProperties> = {
-  primary: { background: color.brand, color: '#fff', border: '1px solid transparent' },
-  secondary: { background: color.surface, color: color.muted, border: `1px solid ${color.hairline}` },
-  tertiary: { background: 'transparent', color: color.muted, border: '1px solid transparent' },
+  primary: { background: color.brand, color: '#fff', border: `1px solid ${color.brand}` },
+  secondary: { background: color.canvas, color: color.ink, border: `1px solid ${color.borderTint}` },
+  tertiary: { background: 'transparent', color: color.muted, border: `1px solid ${color.borderTint}` },
   ghost: { background: 'transparent', color: color.muted, border: '1px solid transparent' },
   danger: { background: color.danger, color: '#fff', border: '1px solid transparent' },
   'danger-soft': { background: `${color.danger}0d`, color: color.danger, border: `1px solid ${color.danger}22` },

@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { AlertTriangle, TrendingUp, DollarSign, Ship, Eye, Download } from 'lucide-react';
 import { filtersSurface, getAutoFitGridStyle, getResponsiveTableStyle, getSearchWrapStyle, getSegmentButtonStyle, pageActions, pageHeader, pageShell, tableHeadCell, tableHeadRow, tableScrollArea, tableShell, segmentedControl } from './chromeStyles';
-import { CARPETAS, PROVEEDORES, getEstadoColor, type Carpeta } from './mockData';
+import { CARPETAS, PROVEEDORES, type Carpeta } from './mockData';
 import { MetricCardGrid } from './MetricCardGrid';
-import { NeonBadge } from './NeonBadge';
 import { useIsMobile } from './ui/use-mobile';
 import { SearchField, normalizeSearchTerm } from './SearchField';
 import { AppButton } from './AppButton';
@@ -34,10 +33,10 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
   const isMobile = useIsMobile();
   const list = carpetasList ?? CARPETAS;
 
-  const activas    = list.filter(c => c.estado !== 'Cerrada');
-  const criticas   = list.filter(c => c.estado === 'Con Incidencia' || c.subcarpetas.some(s => s.canalAduana === 'Rojo'));
+  const activas    = list.filter(c => c.subcarpetas.length === 0 || c.subcarpetas.some(sub => sub.estado !== 'En Stock'));
+  const criticas   = list.filter(c => c.subcarpetas.some(s => s.canalAduana === 'Rojo' || s.incidencias.length > 0));
   const totalMonto = activas.reduce((s, c) => s + c.montoTotal, 0);
-  const contenedores = list.flatMap(c => c.subcarpetas).filter(s => s.estado !== 'Cerrada').reduce((s, sub) => s + sub.contenedores, 0);
+  const contenedores = list.flatMap(c => c.subcarpetas).filter(s => s.estado !== 'En Stock').reduce((s, sub) => s + sub.contenedores, 0);
   const costeo = list.filter(c => c.coeficienteReal !== null);
   const desvios = costeo.filter(c => Math.abs((c.coeficienteReal! - c.coeficienteEst) / c.coeficienteEst) > 0.05);
 
@@ -78,13 +77,12 @@ export function DirectorDashboard({ onViewCarpeta, carpetasList, section, onSect
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {criticas.map(c => {
                   const prov = PROVEEDORES.find(p => p.id === c.proveedorId);
-                  const color = getEstadoColor(c.estado);
+                  const color = '#c4001a';
                   return (
                     <div key={c.id} style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', flexWrap: 'wrap', gap: isMobile ? '8px 12px' : 16, padding: isMobile ? '12px 14px' : '14px 18px', border: `1px solid ${color}`, borderRadius: 12, background: `${color}12` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                         <AlertTriangle size={15} style={{ color, flexShrink: 0 }} />
                         <span style={{ fontSize: 14, fontWeight: 700, color: INK }}>{c.numero}</span>
-                        <NeonBadge estado={c.estado} size="sm" />
                       </div>
                       <span style={{ fontSize: 13, color: MUTED, flex: 1, minWidth: isMobile ? '100%' : 120 }}>{c.ultimoHito}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'space-between' : 'flex-end' }}>

@@ -9,11 +9,11 @@ const INK = color.ink;
 const MUTED = color.muted;
 
 const SHIPMENT_STATES: Record<string, { color: string; background: string; label: string }> = {
-  Activa: { color: '#b45309', background: 'rgba(180,83,9,0.08)', label: 'Pendiente de embarque' },
+  'Pendiente de embarque': { color: '#b45309', background: 'rgba(180,83,9,0.08)', label: 'Pendiente de embarque' },
   'En Tránsito': { color: '#5b21b6', background: 'rgba(91,33,182,0.08)', label: 'En Tránsito' },
-  'En Aduana': { color: '#0066cc', background: 'rgba(0,102,204,0.08)', label: 'Arribado / Aduana' },
+  'Arribado Aduana': { color: '#0066cc', background: 'rgba(0,102,204,0.08)', label: 'Arribado aduana' },
   Oficializado: { color: '#1a5c38', background: 'rgba(26,92,56,0.08)', label: 'Oficializado' },
-  Cerrada: { color: '#6e6e73', background: 'rgba(110,110,115,0.08)', label: 'Cerrada' },
+  'En Stock': { color: '#1a7a4a', background: 'rgba(26,122,74,0.08)', label: 'En stock' },
   Recibida: { color: '#1a7a4a', background: 'rgba(26,122,74,0.08)', label: 'Recibida en depósito' },
 };
 
@@ -41,7 +41,7 @@ export function ShipmentCard({ numero, estado, transporte, eta, canalAduana, for
         <span style={{ minWidth: 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: INK }}>{numero}</span>
-            <StatusBadge tone={estado === 'Activa' ? 'warning' : estado === 'En Tránsito' ? 'violet' : estado === 'En Aduana' ? 'info' : estado === 'Cerrada' ? 'neutral' : 'success'}>{config.label}</StatusBadge>
+            <StatusBadge tone={estado === 'Pendiente de embarque' ? 'warning' : estado === 'En Tránsito' ? 'violet' : estado === 'Arribado Aduana' ? 'info' : 'success'}>{config.label}</StatusBadge>
             <CanalBadge canal={canalAduana} />
           </span>
           <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{transporte || 'Transporte no informado'} · ETA {eta || '—'}</span>
